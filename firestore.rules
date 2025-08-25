@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow read access to all users, but only allow writes if authenticated
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && 
+        (request.auth.uid == resource.data.authorId || 
+         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount', 'updatedAt'])));
+      allow delete: if request.auth != null && request.auth.uid == resource.data.authorId;
+    }
+    
+    // User profiles are readable by anyone but only writable by the user themselves
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Comments are stored as a subcollection of posts
+    match /posts/{postId}/comments/{commentId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.authorId;
+    }
+    
+    // Default deny-all rule
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
