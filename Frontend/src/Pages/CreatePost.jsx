@@ -1,7 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { addPost, ERROR_TYPES, isErrorOfType } from '../Api/api';
 import { useAuth } from '../hooks/useAuth';
+import ReactMarkdown from 'react-markdown';
+import { storage } from '../Api/api';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { FiImage, FiEye, FiEdit, FiX } from 'react-icons/fi';
+import 'github-markdown-css/github-markdown.css';
 
 const CreatePost = () => {
   const navigate = useNavigate();
@@ -9,7 +14,10 @@ const CreatePost = () => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPreview, setIsPreview] = useState(false);
   const [error, setError] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -61,9 +69,74 @@ const CreatePost = () => {
     }
   };
 
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Check if file is an image
+    if (!file.type.match('image.*')) {
+      setError('Please upload an image file');
+      return;
+    }
+
+    // Check file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image size should be less than 5MB');
+      return;
+    }
+
+    setIsUploading(true);
+    const storageRef = ref(storage, `posts/${Date.now()}-${file.name}`);
+    
+    try {
+      const snapshot = await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      
+      // Insert markdown image syntax at cursor position
+      const textarea = document.getElementById('content');
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const text = content;
+      const before = text.substring(0, start);
+      const after = text.substring(end, text.length);
+      const newText = `${before}\n![${file.name}](${downloadURL})\n${after}`;
+      
+      setContent(newText);
+      setError('');
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      setError('Failed to upload image. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current.click();
+  };
+
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-white dark:bg-zinc-800 rounded-2xl shadow-md">
-      <h1 className="text-2xl font-bold mb-6 dark:text-white">Create a New Post</h1>
+    <div className="max-w-4xl mx-auto p-6 bg-white dark:bg-zinc-800 rounded-2xl shadow-md">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold dark:text-white">Create a New Post</h1>
+        <div className="flex space-x-2">
+          <button
+            type="button"
+            onClick={() => setIsPreview(!isPreview)}
+            className="flex items-center px-3 py-1.5 text-sm bg-gray-100 dark:bg-zinc-700 rounded-md hover:bg-gray-200 dark:hover:bg-zinc-600"
+          >
+            {isPreview ? (
+              <>
+                <FiEdit className="mr-1" /> Edit
+              </>
+            ) : (
+              <>
+                <FiEye className="mr-1" /> Preview
+              </>
+            )}
+          </button>
+        </div>
+      </div>
       {error && (
         <div className={`mb-4 p-4 rounded ${
           error.type === 'success' 
@@ -108,17 +181,56 @@ const CreatePost = () => {
           />
         </div>
         <div className="mb-4">
-          <label htmlFor="content" className="block text-gray-700 font-medium mb-2 dark:text-gray-300">
-            Content
-          </label>
-          <textarea
-            id="content"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            className="w-full p-2 border border-gray-300 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white rounded-lg min-h-[200px]"
-            placeholder="Write your post content here..."
-            disabled={isSubmitting}
-          />
+          <div className="flex justify-between items-center mb-2">
+            <label htmlFor="content" className="block text-gray-700 font-medium dark:text-gray-300">
+              Content {isPreview && '(Preview)'}
+            </label>
+            {!isPreview && (
+              <div className="flex space-x-2">
+                <button
+                  type="button"
+                  onClick={triggerFileInput}
+                  disabled={isUploading || isSubmitting}
+                  className="flex items-center text-sm text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white"
+                  title="Insert image"
+                >
+                  <FiImage className="mr-1" />
+                  {isUploading ? 'Uploading...' : 'Add Image'}
+                </button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleImageUpload}
+                  accept="image/*"
+                  className="hidden"
+                  disabled={isUploading || isSubmitting}
+                />
+              </div>
+            )}
+          </div>
+          
+          {isPreview ? (
+            <div className="p-4 border border-gray-300 dark:border-zinc-600 rounded-lg min-h-[300px] markdown-body">
+              <ReactMarkdown>{content || '*Your content will appear here*'}</ReactMarkdown>
+            </div>
+          ) : (
+            <div className="relative">
+              <textarea
+                id="content"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                className="w-full p-4 border border-gray-300 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white rounded-lg min-h-[300px] font-mono text-sm"
+                placeholder="Write your post content here...\n\nYou can use markdown syntax:\n# Heading\n## Subheading\n**Bold** *Italic* \n[Link](https://example.com)\n![Image](image-url)"
+                disabled={isSubmitting}
+              />
+              <div className="absolute bottom-3 right-3 text-xs text-gray-500 dark:text-gray-400">
+                {content.length} characters
+              </div>
+            </div>
+          )}
+          <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+            Markdown is supported. <button type="button" onClick={() => window.open('https://www.markdownguide.org/cheat-sheet/', '_blank')} className="text-blue-600 dark:text-blue-400 hover:underline">Markdown Cheatsheet</button>
+          </div>
         </div>
         <div className="flex justify-end space-x-4">
           <button
