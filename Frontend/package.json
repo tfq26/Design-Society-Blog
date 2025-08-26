@@ -13,8 +13,12 @@
   },
   "jest": {
     "testEnvironment": "jsdom",
-    "setupFiles": ["<rootDir>/src/__mocks__/text-encoder.js"],
-    "setupFilesAfterEnv": ["<rootDir>/src/setupTests.js"],
+    "setupFiles": [
+      "<rootDir>/src/__mocks__/text-encoder.js"
+    ],
+    "setupFilesAfterEnv": [
+      "<rootDir>/src/setupTests.js"
+    ],
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/src/$1"
     },
@@ -36,6 +40,7 @@
   "dependencies": {
     "firebase": "^12.1.0",
     "framer-motion": "^12.23.12",
+    "github-markdown-css": "^5.8.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-icons": "^5.5.0",
