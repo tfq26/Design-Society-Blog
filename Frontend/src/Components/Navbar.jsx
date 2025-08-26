@@ -37,106 +37,112 @@ const NavBar = () => {
     };
   }, []);
 
-  const NavLinks = () => (
-    <>
-      <Link to="/" className="py-2 px-4 rounded-md hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors" onClick={() => setIsMobileMenuOpen(false)}>Blog</Link>
+  const NavLinks = ({ isMobile }) => (
+    <div className={`flex ${isMobile ? 'flex-col space-y-2' : 'flex-row items-center space-x-2'} text-gray-800 dark:text-white`}>
+      <Link to="/" className="py-2 px-4 rounded-md hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors" onClick={() => isMobile && setIsMobileMenuOpen(false)}>Blog</Link>
       {currentUser && (
-        <Link to="/create" className="py-2 px-4 rounded-md hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors" onClick={() => setIsMobileMenuOpen(false)}>Create Post</Link>
+        <Link to="/create" className="py-2 px-4 rounded-md hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors" onClick={() => isMobile && setIsMobileMenuOpen(false)}>Create Post</Link>
       )}
-    </>
+    </div>
   );
 
-  const AuthButtons = () => (
-    <div className="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-2">
+  const AuthButtons = ({ isMobile }) => (
+    <div className={`flex ${isMobile ? 'flex-col w-full space-y-2' : 'flex-row items-center space-x-2'}`}>
       {currentUser ? (
-        <div className="relative" ref={menuRef}>
-          <button onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)} className="flex items-center space-x-2 focus:outline-none group" aria-label="User menu">
-            <div className="relative">
-              {currentUser.photoURL ? (
-                <img src={currentUser.photoURL} alt={currentUser.displayName || 'User'} className="w-10 h-10 rounded-full object-cover border-2 border-transparent group-hover:border-blue-500 transition-colors" referrerPolicy="no-referrer" />
-              ) : (
-                <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium border-2 border-transparent group-hover:border-blue-300 transition-colors">
-                  {currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : currentUser.email ? currentUser.email.charAt(0).toUpperCase() : 'U'}
-                </div>
-              )}
-              {!currentUser.emailVerified && (
-                <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white dark:border-zinc-800 flex items-center justify-center">
-                  <FiAlertCircle className="text-white text-xs" />
-                </span>
-              )}
-            </div>
-            <div className="text-left hidden md:block">
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{currentUser.displayName || currentUser.email.split('@')[0]}</p>
-              <div className="flex items-center">
-                {currentUser.emailVerified ? (
-                  <span className="text-xs text-green-600 dark:text-green-400 flex items-center"><FiCheckCircle className="mr-1" /> Verified</span>
+        <div className="relative w-full" ref={menuRef}>
+          <button onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)} className="flex items-center justify-between w-full p-2 rounded-md hover:bg-gray-100 dark:hover:bg-zinc-700" aria-label="User menu">
+            <div className="flex items-center space-x-2">
+                {currentUser.photoURL ? (
+                  <img src={currentUser.photoURL} alt={currentUser.displayName || 'User'} className="w-10 h-10 rounded-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
-                  <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center"><FiAlertCircle className="mr-1" /> Verify Email</span>
+                  <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium">
+                    {currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : currentUser.email ? currentUser.email.charAt(0).toUpperCase() : 'U'}
+                  </div>
                 )}
-              </div>
+                <div className="text-left">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{currentUser.displayName || currentUser.email.split('@')[0]}</p>
+                  <div className="flex items-center">
+                    {currentUser.emailVerified ? (
+                      <span className="text-xs text-green-600 dark:text-green-400 flex items-center"><FiCheckCircle className="mr-1" /> Verified</span>
+                    ) : (
+                      <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center"><FiAlertCircle className="mr-1" /> Verify Email</span>
+                    )}
+                  </div>
+                </div>
             </div>
             <FiChevronDown className={`text-gray-500 dark:text-gray-400 transition-transform ${isProfileMenuOpen ? 'transform rotate-180' : ''}`} />
           </button>
           {isProfileMenuOpen && (
-            <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-zinc-700 rounded-md shadow-lg py-1 z-50 divide-y divide-gray-100 dark:divide-zinc-600">
-              <div className="px-4 py-3">
+            <div className={`${isMobile ? 'relative mt-2' : 'absolute right-0 mt-2 w-56 bg-white dark:bg-zinc-700 rounded-md shadow-lg py-1 z-50 divide-y divide-gray-100 dark:divide-zinc-600'}`}>
+              {!isMobile && <div className="px-4 py-3">
                 <p className="text-sm font-medium text-gray-900 dark:text-white">{currentUser.displayName || 'User'}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{currentUser.email}</p>
-                {!currentUser.emailVerified && (
-                  <div className="mt-2">
-                    <button onClick={async () => { try { await sendEmailVerification(currentUser); setError(''); alert('Verification email sent.'); } catch (error) { console.error('Error sending verification email:', error); setError('Failed to send verification email'); } setIsProfileMenuOpen(false); }} className="w-full text-left px-3 py-1 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-zinc-600 rounded">Verify Email</button>
-                  </div>
-                )}
-              </div>
-              <div className="py-1">
-                <Link to="/profile" className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-600" onClick={() => setIsProfileMenuOpen(false)}><FiUser className="mr-2" /> Profile</Link>
-                <button onClick={handleLogout} className="w-full flex items-center px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-zinc-600 text-left"><FiLogOut className="mr-2" /> Sign out</button>
+              </div>}
+              {!currentUser.emailVerified && (
+                <div className={isMobile ? 'mt-2' : 'px-2'}>
+                  <button onClick={async () => { try { await sendEmailVerification(currentUser); setError(''); alert('Verification email sent.'); } catch (error) { console.error('Error sending verification email:', error); setError('Failed to send verification email'); } setIsProfileMenuOpen(false); }} className="w-full text-left px-3 py-2 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-zinc-600 rounded">Verify Email</button>
+                </div>
+              )}
+              <div className={isMobile ? 'mt-2' : 'py-1'}>
+                <Link to="/profile" className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-600 rounded-md" onClick={() => {setIsProfileMenuOpen(false); isMobile && setIsMobileMenuOpen(false);}}><FiUser className="mr-2" /> Profile</Link>
+                <button onClick={handleLogout} className="w-full flex items-center px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-zinc-600 text-left rounded-md"><FiLogOut className="mr-2" /> Sign out</button>
               </div>
             </div>
           )}
         </div>
       ) : (
-        <div className="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-2">
-          <Link to="/login" className="py-2 px-4 w-full md:w-auto text-center rounded-md bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors" onClick={() => setIsMobileMenuOpen(false)}>Login</Link>
-          <Link to="/signup" className="py-2 px-4 w-full md:w-auto text-center rounded-md bg-blue-500 text-white hover:bg-blue-600 transition-colors" onClick={() => setIsMobileMenuOpen(false)}>Sign Up</Link>
+        <div className={`flex ${isMobile ? 'flex-col w-full space-y-2' : 'flex-row items-center space-x-2'}`}>
+          <Link to="/login" className="py-2 px-4 w-full text-center rounded-md bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors" onClick={() => isMobile && setIsMobileMenuOpen(false)}>Login</Link>
+          <Link to="/signup" className="py-2 px-4 w-full text-center rounded-md bg-blue-500 text-white hover:bg-blue-600 transition-colors" onClick={() => isMobile && setIsMobileMenuOpen(false)}>Sign Up</Link>
         </div>
       )}
     </div>
   );
 
   return (
-    <nav className="bg-white dark:bg-zinc-800 p-4 shadow-md rounded-b-lg sticky top-0 z-10">
-      <div className="container mx-auto flex justify-between items-center">
-        <Link to="/" className="flex items-center space-x-2">
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Aries</h1>
-        </Link>
+    <>
+      <nav className="bg-white dark:bg-zinc-800 p-4 shadow-md rounded-b-lg sticky top-0 z-30">
+        <div className="container mx-auto flex justify-between items-center">
+          <Link to="/" className="flex items-center space-x-2">
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Aries</h1>
+          </Link>
 
-        {/* Desktop Menu */}
-        <div className="hidden md:flex items-center space-x-2 text-gray-800 dark:text-white">
-          <NavLinks />
-          <AuthButtons />
-        </div>
+          {/* Desktop Menu */}
+          <div className="hidden md:flex items-center space-x-2">
+            <NavLinks isMobile={false} />
+            <AuthButtons isMobile={false} />
+          </div>
 
-        {/* Mobile Menu Button */}
-        <div className="md:hidden">
-          <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-gray-800 dark:text-white focus:outline-none">
-            {isMobileMenuOpen ? <FiX size={24} /> : <FiMenu size={24} />}
-          </button>
-        </div>
-      </div>
-
-      {/* Mobile Menu */}
-      {isMobileMenuOpen && (
-        <div className="md:hidden mt-4 pt-4 border-t border-gray-200 dark:border-zinc-700">
-          <div className="flex flex-col items-center space-y-3 text-gray-800 dark:text-white">
-            <NavLinks />
-            <div className="w-full pt-4 mt-2 border-t border-gray-200 dark:border-zinc-700">
-              <AuthButtons />
-            </div>
+          {/* Mobile Menu Button */}
+          <div className="md:hidden">
+            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-gray-800 dark:text-white focus:outline-none">
+              <FiMenu size={24} />
+            </button>
           </div>
         </div>
-      )}
-    </nav>
+      </nav>
+
+      {/* Overlay */}
+      <div 
+        className={`fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity md:hidden ${isMobileMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        onClick={() => setIsMobileMenuOpen(false)}
+      ></div>
+
+      {/* Slide-out Drawer */}
+      <div className={`fixed top-0 left-0 h-full w-72 bg-white dark:bg-zinc-800 shadow-lg z-50 transform transition-transform md:hidden ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-zinc-700">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white">Menu</h2>
+          <button onClick={() => setIsMobileMenuOpen(false)} className="text-gray-800 dark:text-white focus:outline-none">
+            <FiX size={24} />
+          </button>
+        </div>
+        <div className="p-4 flex flex-col space-y-4">
+          <NavLinks isMobile={true} />
+          <div className="border-t border-gray-200 dark:border-zinc-700 my-2"></div>
+          <AuthButtons isMobile={true} />
+        </div>
+      </div>
+    </>
   );
 };
 
