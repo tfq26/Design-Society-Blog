@@ -38,10 +38,22 @@ const NavBar = () => {
   }, []);
 
   const NavLinks = ({ isMobile }) => (
-    <div className={`flex ${isMobile ? 'flex-col space-y-2' : 'flex-row items-center space-x-2'} text-gray-800 dark:text-white`}>
-      <Link to="/" className="py-2 px-4 rounded-md hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors" onClick={() => isMobile && setIsMobileMenuOpen(false)}>Blog</Link>
+    <div className={`flex ${isMobile ? 'flex-col space-y-2' : 'flex-row items-center space-x-2'}`}>
+      <Link 
+        to="/"
+        className={`py-2 px-4 rounded-md transition-colors text-center ${isMobile ? 'w-full hover:bg-gray-100 dark:hover:bg-zinc-700' : 'w-28 bg-blue-500 text-white hover:bg-blue-600'}`}
+        onClick={() => isMobile && setIsMobileMenuOpen(false)}
+      >
+        Blog
+      </Link>
       {currentUser && (
-        <Link to="/create" className="py-2 px-4 rounded-md hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors" onClick={() => isMobile && setIsMobileMenuOpen(false)}>Create Post</Link>
+        <Link 
+          to="/create" 
+          className={`py-2 px-4 rounded-md transition-colors text-center ${isMobile ? 'w-full hover:bg-gray-100 dark:hover:bg-zinc-700' : 'w-28 bg-green-500 text-white hover:bg-green-600'}`}
+          onClick={() => isMobile && setIsMobileMenuOpen(false)}
+        >
+          Create Post
+        </Link>
       )}
     </div>
   );
@@ -49,8 +61,8 @@ const NavBar = () => {
   const AuthButtons = ({ isMobile }) => (
     <div className={`flex ${isMobile ? 'flex-col w-full space-y-2' : 'flex-row items-center space-x-2'}`}>
       {currentUser ? (
-        <div className="relative w-full" ref={menuRef}>
-          <button onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)} className="flex items-center justify-between w-full p-2 rounded-md hover:bg-gray-100 dark:hover:bg-zinc-700" aria-label="User menu">
+        <div className={`${isMobile ? 'w-full' : ''} relative`} ref={menuRef}>
+          <button onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)} className={`flex items-center ${isMobile ? 'justify-between w-full p-2' : ''} rounded-md hover:bg-gray-100 dark:hover:bg-zinc-700`} aria-label="User menu">
             <div className="flex items-center space-x-2">
                 {currentUser.photoURL ? (
                   <img src={currentUser.photoURL} alt={currentUser.displayName || 'User'} className="w-10 h-10 rounded-full object-cover" referrerPolicy="no-referrer" />
@@ -92,8 +104,8 @@ const NavBar = () => {
         </div>
       ) : (
         <div className={`flex ${isMobile ? 'flex-col w-full space-y-2' : 'flex-row items-center space-x-2'}`}>
-          <Link to="/login" className="py-2 px-4 w-full text-center rounded-md bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors" onClick={() => isMobile && setIsMobileMenuOpen(false)}>Login</Link>
-          <Link to="/signup" className="py-2 px-4 w-full text-center rounded-md bg-blue-500 text-white hover:bg-blue-600 transition-colors" onClick={() => isMobile && setIsMobileMenuOpen(false)}>Sign Up</Link>
+          <Link to="/login" className={`py-2 px-4 text-center rounded-md transition-colors ${isMobile ? 'w-full bg-gray-200 dark:bg-gray-700' : 'w-24 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600'}`} onClick={() => isMobile && setIsMobileMenuOpen(false)}>Login</Link>
+          <Link to="/signup" className={`py-2 px-4 text-center rounded-md transition-colors ${isMobile ? 'w-full bg-blue-500' : 'w-24 bg-blue-500 text-white hover:bg-blue-600'}`} onClick={() => isMobile && setIsMobileMenuOpen(false)}>Sign Up</Link>
         </div>
       )}
     </div>
@@ -108,8 +120,9 @@ const NavBar = () => {
           </Link>
 
           {/* Desktop Menu */}
-          <div className="hidden md:flex items-center space-x-2">
+          <div className="hidden md:flex items-center space-x-4">
             <NavLinks isMobile={false} />
+            <div className="hidden md:block h-6 w-px bg-gray-300 dark:bg-zinc-600"></div>
             <AuthButtons isMobile={false} />
           </div>
 
