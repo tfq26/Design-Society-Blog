@@ -2,8 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { FiUser, FiLogOut, FiMenu, FiX, FiChevronDown, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
-import { Sheet, SheetContent, SheetTrigger } from './ui/sheet';
-import { cn } from '../lib/utils';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from './ui/sheet';
 
 const NavBar = () => {
   const { currentUser, logout, sendEmailVerification } = useAuth();
@@ -292,22 +291,23 @@ const NavBar = () => {
         <div className="md:hidden">
           <Sheet>
             <SheetTrigger asChild>
-              <button className="text-gray-800 dark:text-white focus:outline-none">
-                <FiMenu size={24} />
+              <button className="text-gray-800 dark:text-white focus:outline-none cursor-pointer">
+                <FiMenu size={24} className="cursor-pointer" />
               </button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-4/5 max-w-sm">
-              <div className="h-full flex flex-col">
-                <div className="flex-1 overflow-y-auto">
-                  <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-6">Menu</h2>
-                  <NavLinks onLinkClick={() => document.activeElement.blur()} />
-                  
-                  {currentUser ? (
-                    <UserProfile onLinkClick={() => document.activeElement.blur()} />
-                  ) : (
-                    <AuthButtons onLinkClick={() => document.activeElement.blur()} />
-                  )}
-                </div>
+            <SheetContent side="right" className="w-4/5 max-w-sm flex flex-col p-0 bg-white dark:bg-zinc-900 text-gray-800 dark:text-white">
+              <SheetHeader className="p-6 border-b dark:border-zinc-700">
+                <SheetTitle className="text-xl text-gray-800 dark:text-white">Menu</SheetTitle>
+              </SheetHeader>
+              <div className="flex-1 overflow-y-auto p-6 text-gray-800 dark:text-white">
+                <NavLinks onLinkClick={() => document.querySelector('[data-state=open] button')?.click()} />
+              </div>
+              <div className="p-6 border-t dark:border-zinc-700 mt-auto">
+                {currentUser ? (
+                  <UserProfile onLinkClick={() => document.querySelector('[data-state=open] button')?.click()} />
+                ) : (
+                  <AuthButtons onLinkClick={() => document.querySelector('[data-state=open] button')?.click()} />
+                )}
               </div>
             </SheetContent>
           </Sheet>
