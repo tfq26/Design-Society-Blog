@@ -3,7 +3,6 @@ import { Routes, Route, Navigate, useRouteError, useLocation } from 'react-route
 import NavBar from './Components/Navbar';
 import Dashboard from './Pages/Dashboard';
 import Post from './Pages/Post';
-import Discussion from './Pages/Discussion';
 import CreatePost from './Pages/CreatePost';
 import Profile from './Pages/Profile';
 import Login from './Components/auth/Login';
@@ -67,7 +66,6 @@ function App() {
             <Route path="/create" element={<PrivateRoute><CreatePost /></PrivateRoute>} />
             <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
             <Route path="/post/:id" element={<ErrorBoundaryRoute element={Post} />} />
-            <Route path="/post/:id/discussion" element={<ErrorBoundaryRoute element={Discussion} />} />
             <Route path="*" element={
               <ErrorBoundary>
                 <div className="min-h-screen flex items-center justify-center">

@@ -147,7 +147,7 @@ const NavBar = () => {
                 onLinkClick();
                 handleLogout(e);
               }}
-              className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-zinc-600 rounded-md"
+              className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-zinc-600 rounded-md cursor-pointer"
             >
               <FiLogOut className="inline mr-2" /> Sign out
             </button>
@@ -262,9 +262,9 @@ const NavBar = () => {
                     </Link>
                     <button 
                       onClick={handleLogout}
-                      className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-zinc-600 flex items-center"
+                      className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-zinc-600 flex items-center cursor-pointer"
                     >
-                      <FiLogOut className="mr-2" /> Sign out
+                      <FiLogOut className="mr-2 " /> Sign out
                     </button>
                   </div>
                 </div>

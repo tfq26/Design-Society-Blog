@@ -459,7 +459,7 @@ export const deleteComment = async (postId, commentId) => {
   }
 };
 
-export const addComment = async (postId, content) => {
+export const addComment = async (postId, content, parentId = null) => {
   try {
     if (!auth.currentUser) {
       throw new ApiError('User not authenticated', 'auth/not-authenticated');
@@ -478,6 +478,7 @@ export const addComment = async (postId, content) => {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       votes: 0,
+      parentId: parentId,
     };
     
     // Start a transaction to update both the comment and the post's comment count
