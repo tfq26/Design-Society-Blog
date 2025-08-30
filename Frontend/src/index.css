@@ -1,1 +1,51 @@
 @import "tailwindcss";
+
+@theme {
+  --color-eerie-black: #262626;
+  --color-ash-gray: #f3a850;
+  --color-beige: #f9e3c1;
+  --color-orange-wheel: #dd6529;
+  --color-red: #400602;
+  --color-bone: #ECE2D0;
+}
+
+body {
+  @apply bg-white dark:bg-eerie-black text-gray-800 dark:text-gray-200;
+}
+
+/* Gradients */
+.gradient-top {
+  background: linear-gradient(0deg, var(--color-eerie-black), var(--color-ash-gray), var(--color-beige), var(--color-orange-wheel), var(--color-red));
+}
+
+.gradient-right {
+  background: linear-gradient(90deg, var(--color-eerie-black), var(--color-ash-gray), var(--color-beige), var(--color-orange-wheel), var(--color-red));
+}
+
+.gradient-bottom {
+  background: linear-gradient(180deg, var(--color-eerie-black), var(--color-ash-gray), var(--color-beige), var(--color-orange-wheel), var(--color-red));
+}
+
+.gradient-left {
+  background: linear-gradient(270deg, var(--color-eerie-black), var(--color-ash-gray), var(--color-beige), var(--color-orange-wheel), var(--color-red));
+}
+
+.gradient-top-right {
+  background: linear-gradient(45deg, var(--color-eerie-black), var(--color-ash-gray), var(--color-beige), var(--color-orange-wheel), var(--color-red));
+}
+
+.gradient-bottom-right {
+  background: linear-gradient(135deg, var(--color-eerie-black), var(--color-ash-gray), var(--color-beige), var(--color-orange-wheel), var(--color-red));
+}
+
+.gradient-top-left {
+  background: linear-gradient(225deg, var(--color-eerie-black), var(--color-ash-gray), var(--color-beige), var(--color-orange-wheel), var(--color-red));
+}
+
+.gradient-bottom-left {
+  background: linear-gradient(315deg, var(--color-eerie-black), var(--color-ash-gray), var(--color-beige), var(--color-orange-wheel), var(--color-red));
+}
+
+.gradient-radial {
+  background: radial-gradient(var(--color-eerie-black), var(--color-ash-gray), var(--color-beige), var(--color-orange-wheel), var(--color-red));
+}

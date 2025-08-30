@@ -50,11 +50,11 @@ const Dashboard = () => {
   });
 
   if (loading) {
-    return <div className="text-center py-10 font-medium text-gray-600 dark: text-black">Loading posts...</div>;
+    return <div className="text-center py-10 font-medium" style={{ color: 'var(--eerie-black)' }}>Loading posts...</div>;
   }
 
   if (error) {
-    return <div className="p-4 bg-red-100 text-red-700 rounded-lg shadow-inner dark: text-black dark:bg-zinc-800">{error}</div>;
+    return <div className="p-4 rounded-lg shadow-inner" style={{ backgroundColor: 'var(--beige)', color: 'var(--red)' }}>{error}</div>;
   }
 
   return (
@@ -65,12 +65,12 @@ const Dashboard = () => {
           placeholder="Search by title or content..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full p-3 border border-gray-300 dark:border-zinc-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+          className="w-full p-3 rounded-lg shadow-sm transition bg-white text-black"
         />
         <select
           value={selectedAuthor}
           onChange={(e) => setSelectedAuthor(e.target.value)}
-          className="w-full sm:w-64 p-3 border border-gray-300 dark:border-zinc-600 rounded-lg shadow-sm bg-white dark:bg-zinc-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+          className="w-full sm:w-64 p-3 rounded-lg shadow-sm transition bg-white text-black"
         >
           <option value="">All Authors</option>
           {authors.map(author => (
@@ -80,21 +80,23 @@ const Dashboard = () => {
       </div>
 
       {filteredPosts.length === 0 ? (
-        <p className="text-center text-gray-500 py-10 dark: text-black ">No posts found.</p>
+        <p className="text-center py-10" style={{ color: 'var(--eerie-black)' }}>No posts found.</p>
       ) : (
         <div className="space-y-4">
           {filteredPosts.map(post => (
             post && post.id && (
             <div 
               key={post.id} 
-              className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 dark:border-zinc-600 dark:bg-zinc-800 cursor-pointer hover:shadow-xl transition-shadow duration-200"
+              className="p-6 rounded-xl shadow-lg cursor-pointer transition-all duration-200 hover:shadow-xl dark:bg-ash-gray bg-beige dark:text-white text-black"
               onClick={() => navigate(`/post/${post.id}`)}
             >
-              <h2 className="text-xl font-semibold text-gray-800 dark:text-white">{post.title}</h2>
-              <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
+              <h2 className="text-xl font-semibold" style={{ color: 'var(--eerie-black)' }}>{post.title}</h2>
+              <p className="text-sm mt-1" style={{ color: 'var(--eerie-black)', opacity: 0.8 }}>
                 By {post.authorName} on {post.createdAt ? new Date(post.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}
               </p>
-              <p className="text-gray-700 mt-4 overflow-hidden text-ellipsis whitespace-nowrap dark:text-gray-300">{post.content.substring(0, 150)}...</p>
+              <p className="mt-4 overflow-hidden text-ellipsis whitespace-nowrap" style={{ color: 'var(--eerie-black)' }}>
+                {post.content.substring(0, 150)}...
+              </p>
             </div>
             )
           ))}

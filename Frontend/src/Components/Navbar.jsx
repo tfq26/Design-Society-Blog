@@ -100,7 +100,7 @@ const NavBar = () => {
               </p>
               <div className="flex items-center">
                 {currentUser.emailVerified ? (
-                  <span className="text-xs text-green-600 dark:text-green-400 flex items-center">
+                  <span className="text-xs text-red-600 dark:text-red-400 flex items-center">
                     <FiCheckCircle className="mr-1" /> Verified
                   </span>
                 ) : (
@@ -177,24 +177,18 @@ const NavBar = () => {
   );
 
   return (
-    <nav className="bg-white dark:bg-zinc-800 p-4 shadow-md sticky top-0 z-30">
+    <nav className="bg-white dark:bg-orange-wheel p-2 shadow-md sticky top-0 z-30">
       <div className="container mx-auto flex justify-between items-center">
         <Link to="/" className="flex items-center space-x-2">
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Aries</h1>
+          <img src="/logo.png" alt="" className="w-16" /> 
         </Link>
 
         {/* Desktop Navigation */}
         <div className="hidden md:flex items-center space-x-6">
-          <Link 
-            to="/" 
-            className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-          >
-            Blog
-          </Link>
           {currentUser && (
             <Link 
               to="/create" 
-              className="text-gray-700 dark:text-gray-200 hover:text-green-600 dark:hover:text-green-400 transition-colors"
+              className="text-gray-700 dark:text-gray-200 hover:text-red-600 dark:hover:text-beige transition-colors"
             >
               Create Post
             </Link>
@@ -273,13 +267,13 @@ const NavBar = () => {
             <div className="flex items-center space-x-3 ml-4">
               <Link 
                 to="/login" 
-                className="px-4 py-2 text-sm rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                className="px-4 py-2 text-sm rounded-md bg-beige/80 text-black hover:bg-beige transition-colors"
               >
                 Login
               </Link>
               <Link 
                 to="/signup" 
-                className="px-4 py-2 text-sm rounded-md bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                className="px-4 py-2 text-sm rounded-md bg-ash-gray/80 text-white hover:bg-ash-gray transition-colors"
               >
                 Sign Up
               </Link>

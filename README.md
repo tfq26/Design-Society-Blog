@@ -1,6 +1,6 @@
-# ♈️ Aries - Modern Web Application
+# ♈️ Design Society Blog - Modern Web Application
 
-Aries is a full-stack web application built with React, Firebase, and modern web technologies. It provides a platform for creating and managing posts with user authentication and real-time updates.
+Design Society Blog is a full-stack web application built with React, Firebase, and modern web technologies. It provides a platform for creating and managing posts with user authentication and real-time updates.
 
 ## 🚀 Features
 

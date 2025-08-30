@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, useRouteError, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import NavBar from './Components/Navbar';
 import Dashboard from './Pages/Dashboard';
 import Post from './Pages/Post';
@@ -12,10 +12,11 @@ import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './hooks/useAuth';
 import useTheme from './hooks/useTheme';
 import PrivateRoute from './Components/auth/PrivateRoute';
-import { ErrorBoundary } from './Components/ErrorBoundary';
+import { ErrorBoundary, ErrorPage } from './Components/ErrorBoundary';
 
 function App() {
   const [isFirebaseReady, setFirebaseReady] = useState(false);
+  const [initializationError, setInitializationError] = useState(null);
   const { currentUser } = useAuth();
 
   useEffect(() => {
@@ -25,6 +26,7 @@ function App() {
         setFirebaseReady(true);
       } catch (error) {
         console.error("Firebase initialization failed", error);
+        setInitializationError(error);
       }
     };
     initialize();
@@ -32,47 +34,86 @@ function App() {
 
   useTheme();
 
-  if (!isFirebaseReady) {
+  if (initializationError) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center p-8">Initializing application...</div>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <ErrorPage 
+          error={initializationError} 
+          resetError={() => window.location.reload()}
+        />
       </div>
     );
   }
 
-  // Error boundary wrapper for routes
-  const ErrorBoundaryRoute = ({ element: Element }) => (
-    <ErrorBoundary>
-      <Element />
-    </ErrorBoundary>
-  );
-
-  // Error boundary wrapper for private routes
-  const PrivateRouteWithErrorBoundary = ({ element: Element, ...rest }) => (
-    <ErrorBoundary>
-      <PrivateRoute element={Element} {...rest} />
-    </ErrorBoundary>
-  );
+  if (!isFirebaseReady) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center p-8" style={{ color: 'var(--eerie-black)' }}>
+          Initializing application...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-gray-50 dark:bg-zinc-900 text-gray-900 dark:text-gray-100 transition-colors duration-300">
+      <div>
         <NavBar />
-        <main className="container mx-auto p-4 sm:p-6 lg:p-8">
+        <main className="container mx-auto px-4 py-8">
           <Routes>
-            <Route path="/" element={<ErrorBoundaryRoute element={Dashboard} />} />
-            <Route path="/login" element={!currentUser ? <ErrorBoundaryRoute element={Login} /> : <Navigate to="/" />} />
-            <Route path="/signup" element={!currentUser ? <ErrorBoundaryRoute element={Signup} /> : <Navigate to="/" />} />
-            <Route path="/create" element={<PrivateRoute><CreatePost /></PrivateRoute>} />
-            <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
-            <Route path="/post/:id" element={<ErrorBoundaryRoute element={Post} />} />
-            <Route path="*" element={
-              <ErrorBoundary>
-                <div className="min-h-screen flex items-center justify-center">
-                  <h1 className="text-2xl font-semibold">404 - Page Not Found</h1>
-                </div>
-              </ErrorBoundary>
-            } />
+            <Route 
+              path="/" 
+              element={
+                <ErrorBoundary>
+                  <Dashboard />
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/post/:id" 
+              element={
+                <ErrorBoundary>
+                  <Post />
+                </ErrorBoundary>
+              } 
+            />
+            <Route
+              path="/create"
+              element={
+                <ErrorBoundary>
+                  <PrivateRoute>
+                    <CreatePost />
+                  </PrivateRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route 
+              path="/login" 
+              element={
+                <ErrorBoundary>
+                  {!currentUser ? <Login /> : <Navigate to="/" />}
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/signup" 
+              element={
+                <ErrorBoundary>
+                  {!currentUser ? <Signup /> : <Navigate to="/" />}
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/profile" 
+              element={
+                <ErrorBoundary>
+                  <PrivateRoute>
+                    <Profile />
+                  </PrivateRoute>
+                </ErrorBoundary>
+              } 
+            />
+            <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>
       </div>

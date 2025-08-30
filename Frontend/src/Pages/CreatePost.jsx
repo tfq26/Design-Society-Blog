@@ -227,7 +227,7 @@ const CreatePost = () => {
               <button 
                 type="button" 
                 onClick={() => window.open('https://www.markdownguide.org/cheat-sheet/', '_blank')} 
-                className="text-blue-600 dark:text-blue-400 hover:underline"
+                className="text-orange-600 dark:text-orange-400 hover:underline"
               >
                 Markdown Cheatsheet
               </button>
@@ -248,7 +248,7 @@ const CreatePost = () => {
           </button>
           <button
             type="submit"
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 cursor-pointer"
             disabled={isSubmitting || !title.trim() || !content.trim()}
           >
             {isSubmitting ? 'Publishing...' : 'Publish Post'}

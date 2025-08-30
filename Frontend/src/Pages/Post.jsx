@@ -158,18 +158,18 @@ const Post = () => {
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-6 bg-white rounded-2xl shadow-md dark:bg-zinc-800">
+    <div className="max-w-3xl mx-auto p-6 bg-beige/90 rounded-2xl shadow-md dark:bg-ash-gray">
       {/* Navigation */}
       <button
         onClick={() => navigate('/')} // Go back to the blog page
-        className="mb-4 text-blue-600 hover:underline dark:text-black dark:text-white"
+        className="mb-4 text-orange-600 hover:underline dark:text-white cursor-pointer"
       >
         ← Back
       </button>
 
       {/* Post Header */}
-      <h1 className="text-3xl font-bold mb-2 dark:text-black dark:text-white">{post.title}</h1>
-      <p className="text-gray-500 text-sm mb-6 dark:text-black dark:text-white">
+      <h1 className="text-3xl font-bold mb-2 dark:text-white">{post.title}</h1>
+      <p className="text-gray-500 text-sm mb-6 dark:text-bone">
         By {post.authorName} · {post.createdAt ? new Date(post.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}
       </p>
 
@@ -188,7 +188,7 @@ const Post = () => {
       )}
 
       {/* Post Content - Markdown Renderer */}
-      <div className="prose max-w-none mb-8  dark:text-black dark:text-white">
+      <div className="prose max-w-none mb-8  text-orange-600 dark:text-gray-100">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>
           {post.content}
         </ReactMarkdown>
@@ -206,20 +206,20 @@ const Post = () => {
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
               placeholder="Add to the discussion..."
-              className="w-full p-2 border rounded-lg dark:bg-zinc-700 dark:text-white dark:border-zinc-600"
+              className="w-full p-2 border rounded-lg dark:bg-beige dark:text-black dark:border-zinc-600"
               rows="3"
             />
             <button
               type="submit"
               disabled={!newComment.trim()}
-              className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 disabled:opacity-50"
+              className="mt-2 px-4 py-2 bg-orange-600 text-white rounded-lg shadow hover:bg-orange-700 disabled:opacity-50"
             >
               Submit
             </button>
           </form>
         ) : (
-          <p className="mb-6 text-gray-600 dark:text-gray-400">
-            <Link to="/login" className="text-blue-600 hover:underline">Log in</Link> to join the discussion.
+          <p className="mb-6 text-gray-600 dark:text-bone">
+            <Link to="/login" className="text-orange-600 hover:underline">Log in</Link> to join the discussion.
           </p>
         )}
 
@@ -249,7 +249,7 @@ const Post = () => {
               />
               <div className="flex justify-end space-x-2 mt-4">
                 <button onClick={() => setEditingCommentId(null)} className="px-4 py-2 bg-gray-200 text-black rounded-lg dark:bg-zinc-600 dark:text-white">Cancel</button>
-                <button onClick={() => handleUpdateComment(editingCommentId)} className="px-4 py-2 bg-blue-600 text-white rounded-lg">Save</button>
+                <button onClick={() => handleUpdateComment(editingCommentId)} className="px-4 py-2 bg-orange-600 text-white rounded-lg">Save</button>
               </div>
             </div>
           </div>

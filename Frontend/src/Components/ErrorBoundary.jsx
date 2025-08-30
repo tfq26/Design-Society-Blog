@@ -86,8 +86,8 @@ const ErrorPage = ({ error: propError, resetError }) => {
           className="mb-8"
         >
           <img 
-            src="/aries-svgrepo-com.svg" 
-            alt="Aries Logo" 
+            src="/Design Society Blog-svgrepo-com.svg" 
+            alt="Design Society Blog Logo" 
             className="h-32 w-32 mx-auto filter drop-shadow-lg"
           />
         </motion.div>
