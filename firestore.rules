@@ -1,30 +1,76 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow read access to all users, but only allow writes if authenticated
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user is the author
+    function isAuthor() {
+      return request.auth.uid == resource.data.authorId;
+    }
+
+    // Posts collection
     match /posts/{postId} {
+      // Allow anyone to read posts
       allow read: if true;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null && 
-        (request.auth.uid == resource.data.authorId || 
-         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount', 'updatedAt'])));
-      allow delete: if request.auth != null && request.auth.uid == resource.data.authorId;
+      
+      // Allow authenticated users to create posts
+      allow create: if isAuthenticated() && 
+        request.resource.data.keys().hasAll(['title', 'content', 'authorId', 'authorName', 'createdAt']) &&
+        request.auth.uid == request.resource.data.authorId;
+      
+      // Allow updates to posts by the author or admin-like operations
+      allow update: if isAuthenticated() && (
+        isAuthor() ||
+        // Allow updates to specific fields by any authenticated user (e.g., like counts)
+        (request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['likes', 'likesCount', 'updatedAt'])
+        )
+      );
+      
+      // Only allow the author to delete their own posts
+      allow delete: if isAuthenticated() && isAuthor();
     }
     
-    // User profiles are readable by anyone but only writable by the user themselves
-    match /users/{userId} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    // Comments are stored as a subcollection of posts
+    // Comments subcollection
     match /posts/{postId}/comments/{commentId} {
+      // Allow anyone to read comments
       allow read: if true;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && request.auth.uid == resource.data.authorId;
+      
+      // Allow authenticated users to create comments
+      allow create: if isAuthenticated() &&
+        request.resource.data.keys().hasAll(['content', 'authorId', 'authorName', 'createdAt']) &&
+        request.auth.uid == request.resource.data.authorId;
+      
+      // Allow updates to comments by the author
+      allow update: if isAuthenticated() && (
+        isAuthor() ||
+        // Allow updates to specific fields by any authenticated user (e.g., like counts)
+        (request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['likes', 'likesCount'])
+        )
+      );
+      
+      // Only allow the author to delete their own comments
+      allow delete: if isAuthenticated() && isAuthor();
     }
     
-    // Default deny-all rule
+    // User profiles
+    match /users/{userId} {
+      // Allow anyone to read user profiles
+      allow read: if true;
+      
+      // Users can only write to their own profile
+      allow create: if isAuthenticated() && 
+        request.auth.uid == userId &&
+        request.resource.data.keys().hasAll(['displayName', 'email', 'photoURL']);
+        
+      allow update, delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Default deny-all rule for any other collections
     match /{document=**} {
       allow read, write: if false;
     }

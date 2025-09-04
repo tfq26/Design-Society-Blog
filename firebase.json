@@ -18,6 +18,9 @@
     },
     "singleProjectMode": true
   },
+  "functions": {
+    "source": "functions"
+  },
   "dataconnect": {
     "source": "dataconnect"
   },

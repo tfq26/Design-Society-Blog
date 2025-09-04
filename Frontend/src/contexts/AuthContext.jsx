@@ -239,22 +239,52 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Listen for auth state changes
+  // Function to set admin status for a user
+  const setAdminStatus = async (userId, isAdmin) => {
+    try {
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        isAdmin: isAdmin,
+        updatedAt: serverTimestamp()
+      });
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating admin status:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         try {
           // Get additional user data from Firestore
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          const userRef = doc(db, 'users', user.uid);
+          const userDoc = await getDoc(userRef);
           const userData = userDoc.data() || {};
           
-          // Merge auth user data with Firestore data, ensuring auth data takes precedence for core fields
+          // If this is a new user, create their document with default values
+          if (!userDoc.exists()) {
+            await setDoc(userRef, {
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName || user.email,
+              emailVerified: user.emailVerified || false,
+              isAdmin: false, // Default to non-admin
+              createdAt: serverTimestamp(),
+              lastLogin: serverTimestamp()
+            });
+          }
+          
+          // Merge auth user data with Firestore data
           setCurrentUser({
-            ...userData, // Firestore data first
-            uid: user.uid, // Core auth data takes precedence
+            ...userData,
+            uid: user.uid,
             email: user.email,
             emailVerified: user.emailVerified,
-            displayName: user.displayName,
+            displayName: user.displayName || user.email,
             photoURL: user.photoURL,
+            isAdmin: userData.isAdmin || false
           });
         } catch (error) {
           console.error('Error fetching user data:', error);
@@ -302,6 +332,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     updateUserProfile,
     updateUserBanner,
+    setAdminStatus,
     sendEmailVerification: (user) => sendEmailVerification(user || currentUser)
   };
 

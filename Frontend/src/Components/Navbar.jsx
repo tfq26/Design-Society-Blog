@@ -59,13 +59,22 @@ const NavBar = () => {
         Blog
       </Link>
       {currentUser && (
-        <Link 
-          to="/create" 
-          className="block w-full py-2 px-4 rounded-md text-left hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors"
-          onClick={onLinkClick}
-        >
-          Create Post
-        </Link>
+        <>
+          <Link 
+            to="/create" 
+            className="block w-full py-2 px-4 rounded-md text-left hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors"
+            onClick={onLinkClick}
+          >
+            Create Post
+          </Link>
+          <Link 
+            to="/admin" 
+            className="block w-full py-2 px-4 rounded-md text-left hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors"
+            onClick={onLinkClick}
+          >
+            Admin Dashboard
+          </Link>
+        </>
       )}
     </div>
   );
@@ -140,6 +149,13 @@ const NavBar = () => {
             >
               <FiUser className="inline mr-2" /> Profile
             </Link>
+            <Link 
+              to="/admin" 
+              className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-600 rounded-md"
+              onClick={onLinkClick}
+            >
+              <FiUser className="inline mr-2" /> Admin
+            </Link>
             <button 
               onClick={(e) => {
                 e.preventDefault();
@@ -185,13 +201,33 @@ const NavBar = () => {
 
         {/* Desktop Navigation */}
         <div className="hidden md:flex items-center space-x-6">
-          {currentUser && (
-            <Link 
-              to="/create" 
+          <Link 
+              to="/dashboard" 
               className="text-gray-700 dark:text-gray-200 hover:text-red-600 dark:hover:text-beige transition-colors"
             >
-              Create Post
+              Posts
             </Link>
+            <Link 
+              to="/Events" 
+              className="text-gray-700 dark:text-gray-200 hover:text-red-600 dark:hover:text-beige transition-colors"
+            >
+              Events
+            </Link>
+          {currentUser && (
+            <>
+              <Link 
+                to="/create" 
+                className="text-gray-700 dark:text-gray-200 hover:text-red-600 dark:hover:text-beige transition-colors"
+              >
+                Create Post
+              </Link>
+              <Link 
+                to="/admin" 
+                className="text-gray-700 dark:text-gray-200 hover:text-red-600 dark:hover:text-beige transition-colors"
+              >
+                Admin
+              </Link>
+            </>
           )}
           
           {currentUser ? (
@@ -252,6 +288,13 @@ const NavBar = () => {
                       onClick={() => setIsProfileMenuOpen(false)}
                     >
                       <FiUser className="inline mr-2" /> Profile
+                    </Link>
+                    <Link 
+                      to="/admin" 
+                      className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-600"
+                      onClick={() => setIsProfileMenuOpen(false)}
+                    >
+                      <FiUser className="inline mr-2" /> Admin
                     </Link>
                     <button 
                       onClick={handleLogout}

@@ -7,9 +7,12 @@
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
 
-const {setGlobalOptions} = require("firebase-functions");
-const {onRequest} = require("firebase-functions/https");
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { initializeApp } = require("firebase-admin/app");
+const { getAuth } = require("firebase-admin/auth");
 const logger = require("firebase-functions/logger");
+
+initializeApp();
 
 // For cost control, you can set the maximum number of containers that can be
 // running at the same time. This helps mitigate the impact of unexpected
@@ -21,12 +24,21 @@ const logger = require("firebase-functions/logger");
 // functions should each use functions.runWith({ maxInstances: 10 }) instead.
 // In the v1 API, each function can only serve one request per container, so
 // this will be the maximum concurrent request count.
-setGlobalOptions({ maxInstances: 10 });
+exports.addAdminRole = onCall(async (request) => {
+  // Check if the user making the request is an admin.
+  if (request.auth.token.admin !== true) {
+    throw new HttpsError('permission-denied', 'Only admins can add other admins.');
+  }
 
-// Create and deploy your first functions
-// https://firebase.google.com/docs/functions/get-started
-
-// exports.helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });
+  // Get user and add custom claim (admin).
+  try {
+    const user = await getAuth().getUserByEmail(request.data.email);
+    await getAuth().setCustomUserClaims(user.uid, {
+      admin: true,
+    });
+    return { message: `Success! ${request.data.email} has been made an admin.` };
+  } catch (error) {
+    console.error('Error setting custom claims:', error);
+    throw new HttpsError('internal', 'An error occurred while setting the admin role.');
+  }
+});

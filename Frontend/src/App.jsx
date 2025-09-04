@@ -12,7 +12,13 @@ import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './hooks/useAuth';
 import useTheme from './hooks/useTheme';
 import PrivateRoute from './Components/auth/PrivateRoute';
+import AdminRoute from './Components/auth/AdminRoute';
+import ProtectedRoute from './Components/ProtectedRoute';
 import { ErrorBoundary, ErrorPage } from './Components/ErrorBoundary';
+import Home from './Pages/Home';
+import Events from './Pages/Events';
+import EventDetails from './Pages/EventDetails';
+import AdminDashboard from './Pages/AdminDashboard';
 
 function App() {
   const [isFirebaseReady, setFirebaseReady] = useState(false);
@@ -65,7 +71,7 @@ function App() {
               path="/" 
               element={
                 <ErrorBoundary>
-                  <Dashboard />
+                  <Home />
                 </ErrorBoundary>
               } 
             />
@@ -74,6 +80,30 @@ function App() {
               element={
                 <ErrorBoundary>
                   <Post />
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/Events" 
+              element={
+                <ErrorBoundary>
+                  <Events />
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/event/:eventId" 
+              element={
+                <ErrorBoundary>
+                  <EventDetails />
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/dashboard" 
+              element={
+                <ErrorBoundary>
+                  <Dashboard />
                 </ErrorBoundary>
               } 
             />
@@ -110,6 +140,16 @@ function App() {
                   <PrivateRoute>
                     <Profile />
                   </PrivateRoute>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/admin" 
+              element={
+                <ErrorBoundary>
+                  <AdminRoute>
+                    <AdminDashboard />
+                  </AdminRoute>
                 </ErrorBoundary>
               } 
             />

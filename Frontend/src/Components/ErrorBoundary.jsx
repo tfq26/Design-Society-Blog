@@ -1,6 +1,7 @@
 import { Component, useState } from 'react';
 import { useNavigate, useRouteError, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { FiCopy, FiCheck } from 'react-icons/fi';
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -31,6 +32,7 @@ class ErrorBoundary extends Component {
 
 // ErrorPage component that can be used directly or via ErrorBoundary
 const ErrorPage = ({ error: propError, resetError }) => {
+  const [copied, setCopied] = useState(false);
   let routeError;
   try {
     routeError = useRouteError();
@@ -67,12 +69,12 @@ const ErrorPage = ({ error: propError, resetError }) => {
 
   return (
     <motion.div 
-      className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col items-center justify-center p-6"
+      className="min-h-screen bg-gradient-to-br from-orange-wheel to-orange-200 flex flex-col items-center justify-center p-6 rounded-3xl"
       variants={containerVariants}
       initial="hidden"
       animate="visible"
     >
-      <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-8 text-center">
+      <div className="max-w-2xl w-full bg-beige rounded-2xl shadow-xl p-8 text-center">
         <motion.div
           animate={{ 
             y: [0, -10, 0],
@@ -86,7 +88,7 @@ const ErrorPage = ({ error: propError, resetError }) => {
           className="mb-8"
         >
           <img 
-            src="/Design Society Blog-svgrepo-com.svg" 
+            src="/logo.png" 
             alt="Design Society Blog Logo" 
             className="h-32 w-32 mx-auto filter drop-shadow-lg"
           />
@@ -140,17 +142,48 @@ const ErrorPage = ({ error: propError, resetError }) => {
               transition={{ duration: 0.3 }}
               className="overflow-hidden"
             >
-              <div className="bg-gray-50 p-4 rounded-lg text-left font-mono text-sm text-gray-700 whitespace-pre-wrap break-words">
-                {JSON.stringify(
-                  {
-                    message: error.message,
-                    status: error.status || error.statusCode,
-                    stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-                    ...(process.env.NODE_ENV === 'development' ? error : {})
-                  },
-                  null,
-                  2
-                )}
+              <div className="relative">
+                <div className="absolute top-2 right-2">
+                  <motion.button
+                    onClick={() => {
+                      const errorDetails = JSON.stringify(
+                        {
+                          message: error.message,
+                          status: error.status || error.statusCode,
+                          stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+                          ...(process.env.NODE_ENV === 'development' ? error : {})
+                        },
+                        null,
+                        2
+                      );
+                      navigator.clipboard.writeText(errorDetails);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                    className="p-2 text-gray-500 hover:text-indigo-600 transition-colors"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                    title="Copy error details"
+                  >
+                    {copied ? (
+                      <FiCheck className="w-5 h-5 text-green-500" />
+                    ) : (
+                      <FiCopy className="w-5 h-5" />
+                    )}
+                  </motion.button>
+                </div>
+                <div className="bg-gray-50 p-4 pr-12 rounded-lg text-left font-mono text-sm text-gray-700 whitespace-pre-wrap break-words max-h-96 overflow-y-auto">
+                  {JSON.stringify(
+                    {
+                      message: error.message,
+                      status: error.status || error.statusCode,
+                      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+                      ...(process.env.NODE_ENV === 'development' ? error : {})
+                    },
+                    null,
+                    2
+                  )}
+                </div>
               </div>
             </motion.div>
           )}
