@@ -70,6 +70,40 @@ service cloud.firestore {
       allow update, delete: if isAuthenticated() && request.auth.uid == userId;
     }
     
+    // Events collection
+    match /events/{eventId} {
+      // Allow any authenticated user to read events
+      allow read: if isAuthenticated();
+      
+      // Allow authenticated users to create events
+      allow create: if isAuthenticated() && 
+        request.resource.data.keys().hasAll([
+          'title',
+          'description',
+          'startDate',
+          'location',
+          'status',
+          'type',
+          'isFeatured',
+          'createdBy',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        request.auth.uid == request.resource.data.createdBy;
+      
+      // Allow updates by the event creator or admin
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.createdBy ||
+        // Allow updates to specific fields by any authenticated user (e.g., like counts)
+        (request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['updatedAt', 'isFeatured'])
+        )
+      );
+      
+      // Only allow the creator to delete their own events
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.createdBy;
+    }
+    
     // Default deny-all rule for any other collections
     match /{document=**} {
       allow read, write: if false;

@@ -1,9 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
-  signInAnonymously, 
-  signInWithCustomToken, 
-  onAuthStateChanged as firebaseOnAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
@@ -24,7 +21,7 @@ import {
   runTransaction,
   setDoc,
   updateDoc,
-  deleteDoc
+  where
 } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
@@ -68,7 +65,7 @@ googleProvider.setCustomParameters({
 });
 
 // Custom error class for API errors
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(message, code, details = {}) {
     super(message);
     this.name = 'ApiError';
@@ -106,7 +103,7 @@ const handleAuthError = (error) => {
 };
 
 // Helper function to handle Firestore errors
-const handleFirestoreError = (error) => {
+export const handleFirestoreError = (error) => {
   console.error('Firestore error:', error);
   
   let message = 'Database operation failed';
@@ -225,22 +222,103 @@ export const logout = async () => {
 };
 
 /**
- * Fetch posts in real time.
+ * Fetch posts in real time with optional filtering and sorting.
  * @param {function} callback - Called with array of posts whenever updated
+ * @param {object} [options] - Options for filtering and sorting
+ * @param {string} [options.postType] - Filter by post type (regular, community, design_doc)
+ * @param {string} [options.userId] - Filter by author user ID
+ * @param {boolean} [options.includeUserVotes] - Whether to include user's vote status (requires auth)
+ * @param {string} [options.sortBy='createdAt'] - Field to sort by (default: 'createdAt')
+ * @param {string} [options.sortOrder='desc'] - Sort order ('asc' or 'desc')
+ * @param {number} [options.limit] - Maximum number of posts to return
+ * @param {function} [onError] - Error callback
  * @returns {function} - Unsubscribe function
  */
-export const getPosts = (callback, onError) => {
+export const getPosts = (callback, options = {}, onError) => {
   try {
-    const postsRef = collection(db, "posts");
-    const q = query(postsRef, orderBy("createdAt", "desc"));
+    const {
+      postType,
+      userId,
+      includeUserVotes = false,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+      limit
+    } = options;
+    
+    // Start with the base posts collection
+    let postsQuery = collection(db, "posts");
+    
+    // Add filters
+    const queryConstraints = [];
+    
+    // Filter by post type if specified
+    if (postType && Object.values(POST_TYPES).includes(postType)) {
+      queryConstraints.push(where('postType', '==', postType));
+    }
+    
+    // Filter by user ID if specified
+    if (userId) {
+      queryConstraints.push(where('authorId', '==', userId));
+    }
+    
+    // Add sorting
+    queryConstraints.push(orderBy(
+      sortBy === 'votes' ? 'upvotes' : sortBy, // Use upvotes for vote-based sorting
+      sortOrder === 'asc' ? 'asc' : 'desc'
+    ));
+    
+    // Add limit if specified
+    if (limit && typeof limit === 'number' && limit > 0) {
+      queryConstraints.push(limit(limit));
+    }
+    
+    // Create the query
+    const q = query(postsQuery, ...queryConstraints);
     
     const unsubscribe = onSnapshot(q, 
-      (snapshot) => {
-        const posts = [];
-        snapshot.forEach((doc) => {
-          posts.push({ id: doc.id, ...doc.data() });
-        });
-        callback(posts);
+      async (snapshot) => {
+        try {
+          let posts = [];
+          
+          // Process each document
+          for (const docSnapshot of snapshot.docs) {
+            const postData = { id: docSnapshot.id, ...docSnapshot.data() };
+            
+            // If user is authenticated and we need to include their vote status
+            if (includeUserVotes && auth.currentUser) {
+              try {
+                const voteDoc = await getDoc(doc(db, `posts/${doc.id}/userVotes/${auth.currentUser.uid}`));
+                if (voteDoc.exists()) {
+                  postData.userVote = voteDoc.data().direction; // 'up' or 'down'
+                }
+              } catch (error) {
+                console.error('Error fetching user vote:', error);
+                // Continue without vote data if there's an error
+              }
+            }
+            
+            // Ensure default values for required fields
+            postData.votes = postData.upvotes - (postData.downvotes || 0);
+            postData.commentCount = postData.commentCount || 0;
+            postData.postType = postData.postType || POST_TYPES.REGULAR;
+            
+            posts.push(postData);
+          }
+          
+          // If we're not using Firestore's sorting, sort in-memory
+          if (sortBy === 'votes' && sortOrder) {
+            posts.sort((a, b) => {
+              const aVotes = (a.upvotes || 0) - (a.downvotes || 0);
+              const bVotes = (b.upvotes || 0) - (b.downvotes || 0);
+              return sortOrder === 'asc' ? aVotes - bVotes : bVotes - aVotes;
+            });
+          }
+          
+          callback(posts);
+        } catch (error) {
+          console.error('Error processing posts:', error);
+          if (onError) onError(handleFirestoreError(error));
+        }
       },
       (error) => {
         console.error("Error fetching posts:", error);
@@ -255,6 +333,10 @@ export const getPosts = (callback, onError) => {
     return unsubscribe;
   } catch (error) {
     console.error("Error setting up posts listener:", error);
+    if (onError) {
+      onError(handleFirestoreError(error));
+      return () => {}; // Return a no-op function for consistency
+    }
     throw handleFirestoreError(error);
   }
 };
@@ -293,50 +375,144 @@ export const getPost = async (postId) => {
   }
 };
 
+// Post type constants
+export const POST_TYPES = {
+  REGULAR: 'regular',
+  COMMUNITY: 'community',
+  DESIGN_DOC: 'design_doc'
+};
+
 /**
- * Add a new post.
+ * Upload files for a post
+ * @param {Array<File>} files - Array of files to upload
+ * @param {string} postId - The ID of the post
+ * @returns {Promise<Array<object>>} - Array of file metadata with download URLs
+ */
+export const uploadPostFiles = async (files, postId) => {
+  if (!files || !files.length) return [];
+  
+  const uploadPromises = files.map(async (file) => {
+    try {
+      const filePath = `posts/${postId}/${Date.now()}-${file.name}`;
+      const fileRef = ref(storage, filePath);
+      await uploadBytes(fileRef, file);
+      const downloadURL = await getDownloadURL(fileRef);
+      
+      return {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        url: downloadURL,
+        path: filePath
+      };
+    } catch (error) {
+      console.error(`Error uploading file ${file.name}:`, error);
+      throw handleStorageError(error);
+    }
+  });
+  
+  return Promise.all(uploadPromises);
+};
+
+/**
+ * Add a new post with optional files and post type.
  * @param {string} title - The title of the post.
  * @param {string} content - The content of the post.
- * @returns {Promise<object>} - The newly created post data.
- * @throws {ApiError} - If the post creation fails.
+ * @param {string} [postType=POST_TYPES.REGULAR] - The type of the post (regular, community, design_doc).
+ * @param {Array<File>} [files=[]] - Optional array of files to upload with the post.
+ * @param {object} [options={}] - Additional options for the post.
+ * @param {Array<string>} [options.tags=[]] - Tags for the post.
+ * @param {boolean} [options.isPinned=false] - Whether the post should be pinned.
+ * @param {boolean} [options.isFeatured=false] - Whether the post is featured.
+ * @returns {Promise<object>} The newly created post data.
+ * @throws {ApiError} If post creation fails.
  */
-export const addPost = async (title, content) => {
+export const addPost = async (
+  title, 
+  content, 
+  postType = POST_TYPES.REGULAR, 
+  files = [], 
+  options = {}
+) => {
   try {
-    if (!auth.currentUser) {
-      throw new ApiError('User not authenticated', 'auth/not-authenticated');
-    }
-    
-    if (!title || !content) {
+    // Validate input
+    if (!title?.trim() || !content?.trim()) {
       throw new ApiError('Title and content are required', 'validation/missing-fields');
     }
-    
-    const postsRef = collection(db, "posts");
-    const docRef = await addDoc(postsRef, {
+
+    // Ensure user is authenticated
+    const user = auth.currentUser;
+    if (!user) {
+      throw new ApiError('User must be logged in to create a post', 'auth/not-authenticated');
+    }
+
+    // Validate post type
+    if (!Object.values(POST_TYPES).includes(postType)) {
+      throw new ApiError('Invalid post type', 'validation/invalid-post-type', { postType });
+    }
+
+    // Process tags if provided
+    const tags = Array.isArray(options.tags) 
+      ? options.tags.filter(tag => typeof tag === 'string' && tag.trim() !== '')
+      : [];
+
+    // Create post data object
+    const postData = {
       title: title.trim(),
       content: content.trim(),
-      userId: auth.currentUser.uid,
-      authorId: auth.currentUser.uid,
-      authorName: auth.currentUser.displayName || 'Anonymous',
+      postType,
+      userId: user.uid,
+      authorId: user.uid,
+      authorName: user.displayName || user.email?.split('@')[0] || 'Anonymous',
+      authorPhotoURL: user.photoURL || null,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       votes: 0,
-      commentCount: 0
-    });
+      upvotes: 0,
+      downvotes: 0,
+      commentCount: 0,
+      isPinned: Boolean(options.isPinned),
+      isFeatured: Boolean(options.isFeatured),
+      tags,
+      attachments: [],
+    };
+
+    // Add the post to Firestore
+    const postRef = await addDoc(collection(db, 'posts'), postData);
     
-    // Return the newly created post with its ID
-    return { 
-      id: docRef.id, 
-      title, 
-      content, 
-      userId: auth.currentUser.uid,
-      authorId: auth.currentUser.uid,
-      authorName: auth.currentUser.displayName || 'Anonymous',
-      votes: 0,
-      commentCount: 0
+    // If there are files to upload, handle them
+    let attachments = [];
+    if (files && files.length > 0) {
+      try {
+        attachments = await uploadPostFiles(files, postRef.id);
+        
+        // Update the post with the attachment references
+        await updateDoc(postRef, {
+          attachments,
+          updatedAt: serverTimestamp()
+        });
+      } catch (error) {
+        console.error('Error uploading files, but post was created:', error);
+        // Continue even if file upload fails, but log the error
+      }
+    }
+
+    // Return the complete post data with ID and any attachments
+    return {
+      id: postRef.id,
+      ...postData,
+      attachments,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
   } catch (error) {
+    console.error('Error in addPost:', error);
     if (error instanceof ApiError) throw error;
-    throw handleFirestoreError(error);
+    throw new ApiError(
+      error.message || 'Failed to create post',
+      'firestore/post-creation-failed',
+      { cause: error }
+    );
   }
 };
 
@@ -358,11 +534,16 @@ export const getComments = (postId, callback) => {
     
     const unsubscribe = onSnapshot(q, 
       (snapshot) => {
-        const comments = [];
-        snapshot.forEach((doc) => {
-          comments.push({ id: doc.id, ...doc.data() });
-        });
-        callback(comments);
+        try {
+          const comments = [];
+          snapshot.forEach((doc) => {
+            comments.push({ id: doc.id, ...doc.data() });
+          });
+          callback(comments);
+        } catch (error) {
+          console.error("Error processing comments:", error);
+          throw new ApiError('Error processing comments', 'firestore/process-error', { cause: error });
+        }
       },
       (error) => {
         console.error("Error fetching comments:", error);
@@ -376,13 +557,6 @@ export const getComments = (postId, callback) => {
     if (error instanceof ApiError) throw error;
     throw handleFirestoreError(error);
   }
-  return onSnapshot(q, (snapshot) => {
-    const comments = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-    callback(comments);
-  });
 };
 
 /**
@@ -505,10 +679,28 @@ export const addComment = async (postId, content, parentId = null) => {
 };
 
 /**
+ * Get a user's vote on a post
+ * @param {string} postId - The ID of the post
+ * @param {string} userId - The ID of the user
+ * @returns {Promise<string|null>} - The direction of the vote ('up', 'down') or null if no vote
+ */
+export const getUserPostVote = async (postId, userId) => {
+  if (!postId || !userId) return null;
+  
+  try {
+    const voteDoc = await getDoc(doc(db, `posts/${postId}/userVotes/${userId}`));
+    return voteDoc.exists() ? voteDoc.data().direction : null;
+  } catch (error) {
+    console.error('Error getting user vote:', error);
+    return null;
+  }
+};
+
+/**
  * Vote on a post
  * @param {string} postId - The ID of the post to vote on.
  * @param {'up'|'down'} direction - The direction of the vote ('up' or 'down').
- * @returns {Promise<void>}
+ * @returns {Promise<{newVoteCount: number, direction: string|null}>} - The new vote count and direction
  * @throws {ApiError} - If the voting operation fails.
  */
 export const voteOnPost = async (postId, direction) => {
@@ -525,18 +717,22 @@ export const voteOnPost = async (postId, direction) => {
       throw new ApiError('Invalid vote direction', 'validation/invalid-direction');
     }
     
-    const incrementValue = direction === 'up' ? 1 : -1;
     const postRef = doc(db, "posts", postId);
     const userId = auth.currentUser.uid;
-    const voteId = `post_${postId}_user_${userId}`;
-    const userVoteRef = doc(db, "userVotes", voteId);
+    const userVoteRef = doc(db, `posts/${postId}/userVotes`, userId);
+    
+    let result = { newVoteCount: 0, direction: null };
     
     await runTransaction(db, async (transaction) => {
-      // Check if post exists
+      // Check if post exists and get current data
       const postDoc = await transaction.get(postRef);
       if (!postDoc.exists()) {
         throw new ApiError('Post not found', 'firestore/not-found');
       }
+      
+      const postData = postDoc.data();
+      let upvotes = postData.upvotes || 0;
+      let downvotes = postData.downvotes || 0;
       
       // Check if user already voted
       const voteDoc = await transaction.get(userVoteRef);
@@ -545,29 +741,59 @@ export const voteOnPost = async (postId, direction) => {
       if (existingVote) {
         // If same vote direction, remove the vote (toggle off)
         if (existingVote.direction === direction) {
-          transaction.update(postRef, { votes: increment(-incrementValue) });
+          if (direction === 'up') upvotes--;
+          else downvotes--;
+          
           transaction.delete(userVoteRef);
-          return;
+          result.direction = null;
         } 
-        // If opposite direction, update the vote (change from up to down or vice versa)
+        // If opposite direction, update the vote
         else {
-          transaction.update(postRef, { votes: increment(direction === 'up' ? 2 : -2) });
+          if (direction === 'up') {
+            upvotes++;
+            downvotes--;
+          } else {
+            upvotes--;
+            downvotes++;
+          }
+          
+          transaction.update(userVoteRef, {
+            direction,
+            updatedAt: serverTimestamp()
+          });
+          result.direction = direction;
         }
       } 
       // New vote
       else {
-        transaction.update(postRef, { votes: increment(incrementValue) });
+        if (direction === 'up') upvotes++;
+        else downvotes++;
+        
+        transaction.set(userVoteRef, {
+          userId,
+          postId,
+          direction,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        result.direction = direction;
       }
       
-      // Update or create the user's vote record
-      transaction.set(userVoteRef, {
-        userId,
-        postId,
-        direction,
-        createdAt: serverTimestamp(),
+      // Calculate the new vote count (upvotes - downvotes)
+      const newVoteCount = upvotes - downvotes;
+      
+      // Update the post with new vote counts
+      transaction.update(postRef, {
+        upvotes,
+        downvotes,
+        votes: newVoteCount,
         updatedAt: serverTimestamp()
       });
+      
+      result.newVoteCount = newVoteCount;
     });
+    
+    return result;
   } catch (error) {
     console.error("Error voting on post:", error);
     if (error instanceof ApiError) throw error;

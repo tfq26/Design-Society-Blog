@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { addPost, ERROR_TYPES, isErrorOfType } from '../Api/api';
+import { addPost, ERROR_TYPES, isErrorOfType, POST_TYPES } from '../Api/api';
 import { useAuth } from '../hooks/useAuth';
 import { 
   MDXEditor,
@@ -14,7 +14,6 @@ import {
   InsertImage,
   InsertTable,
   InsertThematicBreak,
-  CodeMirrorEditor,
   listsPlugin,
   quotePlugin,
   headingsPlugin,
@@ -25,9 +24,7 @@ import {
   thematicBreakPlugin,
   markdownShortcutPlugin
 } from '@mdxeditor/editor';
-import { storage } from '../Api/api';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { FiImage, FiEye, FiEdit, FiX, FiSave } from 'react-icons/fi';
+import { FiImage, FiX } from 'react-icons/fi';
 import '@mdxeditor/editor/style.css';
 
 const CreatePost = () => {
@@ -37,28 +34,36 @@ const CreatePost = () => {
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
+  const [postType, setPostType] = useState(POST_TYPES.REGULAR);
+  const [files, setFiles] = useState([]);
+  const [tags, setTags] = useState('');
+  const [isPinned, setIsPinned] = useState(false);
+  const fileInputRef = useRef(null);
   const editorRef = useRef(null);
+
+  const handleFileChange = (e) => {
+    const selectedFiles = Array.from(e.target.files);
+    setFiles(prevFiles => [...prevFiles, ...selectedFiles]);
+  };
+
+  const removeFile = (index) => {
+    setFiles(prevFiles => prevFiles.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Client-side validation
     if (!title.trim() || !content.trim()) {
       setError('Title and content are required');
       return;
     }
-    
     if (title.trim().length < 5) {
       setError('Title should be at least 5 characters long');
       return;
     }
-    
     if (content.trim().length < 20) {
       setError('Content should be at least 20 characters long');
       return;
     }
-
     if (!currentUser) {
       setError('You must be logged in to create a post');
       return;
@@ -68,54 +73,22 @@ const CreatePost = () => {
     setError('');
 
     try {
-      await addPost(title, content);
-      // Show success message and navigate after a short delay
+      const tagArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+      await addPost(title, content, postType, files, { 
+        tags: tagArray, 
+        isPinned: isPinned && currentUser.isAdmin,
+        isFeatured: false
+      });
       setError({ type: 'success', message: 'Post created successfully! Redirecting...' });
       setTimeout(() => navigate('/'), 1500);
     } catch (error) {
-      console.error("Error creating post:", error);
-      
-      // Handle specific error cases
       if (isErrorOfType(error, ERROR_TYPES.AUTH)) {
         setError('Your session has expired. Please log in again.');
-      } else if (isErrorOfType(error, ERROR_TYPES.FIRESTORE)) {
-        setError('Failed to save your post. Please try again.');
-      } else if (isErrorOfType(error, ERROR_TYPES.VALIDATION)) {
-        setError(error.message || 'Invalid input. Please check your post and try again.');
       } else {
-        setError('An unexpected error occurred. Please try again later.');
+        setError(error.message || 'An unexpected error occurred.');
       }
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleImageUpload = async (file) => {
-    try {
-      // Check if file is an image
-      if (!file.type.match('image.*')) {
-        setError('Please upload an image file');
-        return '';
-      }
-
-      // Check file size (5MB max)
-      if (file.size > 5 * 1024 * 1024) {
-        setError('Image size should be less than 5MB');
-        return '';
-      }
-
-      setIsUploading(true);
-      const storageRef = ref(storage, `posts/${Date.now()}-${file.name}`);
-      const snapshot = await uploadBytes(storageRef, file);
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      setError('');
-      return downloadURL;
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      setError('Failed to upload image. Please try again.');
-      return '';
-    } finally {
-      setIsUploading(false);
     }
   };
 
@@ -124,13 +97,18 @@ const CreatePost = () => {
   }, []);
 
   const imageUploadHandler = useCallback(async (file) => {
-    const url = await handleImageUpload(file);
-    return url;
+    if (!file.type.match('image.*')) {
+      setError('Please upload an image file');
+      return '';
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image size should be less than 5MB');
+      return '';
+    }
+    return URL.createObjectURL(file);
   }, []);
 
-  // Configure plugins
   const plugins = useCallback(() => [
-    // List plugins
     listsPlugin(),
     quotePlugin(),
     headingsPlugin(),
@@ -140,8 +118,6 @@ const CreatePost = () => {
     tablePlugin(),
     thematicBreakPlugin(),
     markdownShortcutPlugin(),
-    
-    // Toolbar with essential formatting options
     toolbarPlugin({
       toolbarContents: () => (
         <>
@@ -160,101 +136,166 @@ const CreatePost = () => {
   ], [imageUploadHandler]);
 
   return (
-    <div className="max-w-9xl mx-auto p-6 bg-white dark:bg-zinc-800 rounded-2xl shadow-md">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold dark:text-white">Create a New Post</h1>
-      </div>
-      {error && (
-        <div className={`mb-4 p-4 rounded ${
-          error.type === 'success' 
-            ? 'bg-green-50 border-l-4 border-green-400' 
-            : 'bg-red-50 border-l-4 border-red-400'
-        }`}>
-          <div className="flex">
-            <div className="flex-shrink-0">
-              {error.type === 'success' ? (
-                <svg className="h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-              ) : (
-                <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-              )}
-            </div>
-            <div className="ml-3">
-              <p className={`text-sm ${
-                error.type === 'success' ? 'text-green-700' : 'text-red-700'
-              }`}>
-                {typeof error === 'string' ? error : error.message}
-              </p>
-            </div>
+    <div className="max-w-5xl mx-auto p-6 bg-gray-50 min-h-screen">
+      <div className="bg-white shadow-md rounded-xl p-8">
+        <h1 className="text-3xl font-bold mb-6 text-gray-900">✍️ Create New Post</h1>
+
+        {error && (
+          <div className={`mb-6 p-4 rounded-lg flex items-start space-x-3 ${
+            typeof error === 'string' || error.type !== 'success' 
+              ? 'bg-red-50 border border-red-300 text-red-700' 
+              : 'bg-green-50 border border-green-300 text-green-700'
+          }`}>
+            <span className="font-medium">
+              {typeof error === 'string' ? error : error.message}
+            </span>
           </div>
-        </div>
-      )}
-      <form onSubmit={handleSubmit}>
-        <div className="mb-4">
-          <label htmlFor="title" className="block text-gray-700 font-medium mb-2 dark:text-gray-300">
-            Title
-          </label>
-          <input
-            id="title"
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full p-2 border border-gray-300 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white rounded-lg"
-            placeholder="My Awesome Blog Post"
-            disabled={isSubmitting}
-          />
-        </div>
-        <div className="mb-6">
-          <label className="block text-gray-700 font-medium mb-2 dark:text-gray-300">
-            Content
-          </label>
-          <div className="border border-gray-300 dark:border-zinc-600 rounded-lg overflow-hidden">
-            <MDXEditor
-              ref={editorRef}
-              markdown={content}
-              onChange={handleEditorChange}
-              className="min-h-[400px] w-auto bg-white"
-              placeholder="Start writing your post here..."
-              contentEditableClassName="prose dark:prose-invert prose-p:text-current max-w-none mx-4 py-4 dark:text-gray-100 [&_ol]:list-decimal [&_ul]:list-disc [&_ol]:pl-8 [&_ul]:pl-8 [&_li]:my-1 [&_li]:pl-1"
-              plugins={plugins()}
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Post type + pinned */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-800 mb-1">Post Type *</label>
+              <select
+                value={postType}
+                onChange={(e) => setPostType(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={isSubmitting}
+              >
+                <option value={POST_TYPES.REGULAR}>Regular Post</option>
+                <option value={POST_TYPES.COMMUNITY}>Community Post</option>
+                <option value={POST_TYPES.DESIGN_DOC}>Design Document</option>
+              </select>
+            </div>
+            {currentUser?.isAdmin && (
+              <div className="flex items-center">
+                <input
+                  id="isPinned"
+                  type="checkbox"
+                  checked={isPinned}
+                  onChange={(e) => setIsPinned(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  disabled={isSubmitting}
+                />
+                <label htmlFor="isPinned" className="ml-2 text-sm text-gray-800">
+                  Pin this post
+                </label>
+              </div>
+            )}
+          </div>
+
+          {/* Title */}
+          <div>
+            <label className="block text-sm font-medium text-gray-800 mb-1">Title *</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Enter post title"
+              disabled={isSubmitting}
             />
           </div>
-          <div className="mt-2 flex justify-between items-center">
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              <button 
-                type="button" 
-                onClick={() => window.open('https://www.markdownguide.org/cheat-sheet/', '_blank')} 
-                className="text-orange-600 dark:text-orange-400 hover:underline"
+
+          {/* Tags */}
+          <div>
+            <label className="block text-sm font-medium text-gray-800 mb-1">Tags</label>
+            <input
+              type="text"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="tag1, tag2, tag3"
+              disabled={isSubmitting}
+            />
+          </div>
+
+          {/* Editor */}
+          <div>
+            <label className="block text-sm font-medium text-gray-800 mb-2">Content *</label>
+            <div className="border border-gray-300 rounded-lg shadow-sm bg-white">
+              <MDXEditor
+                ref={editorRef}
+                markdown={content}
+                onChange={handleEditorChange}
+                className="w-full bg-white"
+                placeholder="Start writing your post here..."
+                contentEditableClassName="prose max-w-none p-4"
+                plugins={plugins()}
+              />
+            </div>
+            <div className="mt-2 flex justify-between text-sm text-gray-500">
+              <button
+                type="button"
+                onClick={() => window.open('https://www.markdownguide.org/cheat-sheet/', '_blank')}
+                className="text-blue-600 hover:underline"
               >
                 Markdown Cheatsheet
               </button>
-            </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              {content.length} characters
+              <span>{content.length} characters</span>
             </div>
           </div>
-        </div>
-        <div className="flex justify-end space-x-4">
-          <button
-            type="button"
-            onClick={() => navigate('/')}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-700"
-            disabled={isSubmitting}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 cursor-pointer"
-            disabled={isSubmitting || !title.trim() || !content.trim()}
-          >
-            {isSubmitting ? 'Publishing...' : 'Publish Post'}
-          </button>
-        </div>
-      </form>
+
+          {/* File uploads */}
+          <div>
+            <label className="block text-sm font-medium text-gray-800 mb-2">Attachments</label>
+            <div className="flex items-center space-x-3">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                className="hidden"
+                multiple
+                disabled={isSubmitting}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg bg-gray-100 hover:bg-gray-200 focus:ring-2 focus:ring-blue-500"
+              >
+                <FiImage className="mr-2" /> Add Files
+              </button>
+              <span className="text-gray-500">{files.length} selected</span>
+            </div>
+            {files.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {files.map((file, i) => (
+                  <div key={i} className="flex items-center justify-between px-3 py-2 bg-gray-50 border rounded-lg">
+                    <span className="truncate text-sm text-gray-700">{file.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeFile(i)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <FiX />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Buttons */}
+          <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 focus:ring-2 focus:ring-blue-500"
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+              disabled={isSubmitting || !title.trim() || !content.trim()}
+            >
+              {isSubmitting ? 'Creating...' : 'Create Post'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };
