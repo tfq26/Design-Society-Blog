@@ -1,5 +1,5 @@
 specVersion: "v1"
-serviceId: "Design Society Blog"
+serviceId: "design-society-blog"
 location: "us-central1"
 schema:
   source: "./schema"
@@ -7,6 +7,6 @@ schema:
     postgresql:
       database: "fdcdb"
       cloudSql:
-        instanceId: "Design Society Blog-fdc"
+        instanceId: "design-society-blog-fdc"
       # schemaValidation: "COMPATIBLE"
 connectorDirs: ["./example"]

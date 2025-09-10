@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { addPost, ERROR_TYPES, isErrorOfType, POST_TYPES } from '../Api/api';
 import { useAuth } from '../hooks/useAuth';
@@ -28,8 +28,8 @@ import { FiImage, FiX } from 'react-icons/fi';
 import '@mdxeditor/editor/style.css';
 
 const CreatePost = () => {
-  const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -40,6 +40,27 @@ const CreatePost = () => {
   const [isPinned, setIsPinned] = useState(false);
   const fileInputRef = useRef(null);
   const editorRef = useRef(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Redirect if not admin
+  useEffect(() => {
+    if (!currentUser) {
+      navigate('/login');
+    } else if (!currentUser.isAdmin) {
+      navigate('/');
+    } else {
+      setIsLoading(false);
+    }
+  }, [currentUser, navigate]);
+
+  // Don't render anything until we've checked auth status
+  if (isLoading || !currentUser || !currentUser.isAdmin) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
 
   const handleFileChange = (e) => {
     const selectedFiles = Array.from(e.target.files);

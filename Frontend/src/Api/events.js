@@ -8,7 +8,7 @@ import {
   getDoc,
   query, 
   where,
-  orderBy, 
+  orderBy as firestoreOrderBy,
   serverTimestamp,
   Timestamp
 } from 'firebase/firestore';
@@ -161,7 +161,7 @@ export const getEvents = async (options = {}) => {
     }
 
     // Add ordering
-    conditions.push(orderBy(orderByField, orderDirection));
+    conditions.push(firestoreOrderBy(orderByField, orderDirection));
 
     // Create the query with all conditions
     const q = query(eventsRef, ...conditions);
@@ -268,4 +268,93 @@ export const getFeaturedEvents = async (limit = 3) => {
     orderDirection: 'asc',
     limit
   });
+};
+
+/**
+ * Get all events with pagination
+ * @param {Object} [options] - Options for pagination and filtering
+ * @param {number} [options.limit=10] - Number of events per page
+ * @param {string} [options.status] - Filter by status
+ * @param {string} [options.type] - Filter by event type
+ * @param {string} [options.orderBy='startDate'] - Field to order by
+ * @param {'asc'|'desc'} [options.orderDirection='desc'] - Sort direction
+ * @returns {Promise<{events: Array, lastVisible: any}>} Object containing events array and lastVisible document
+ */
+/**
+ * Get a single event by ID
+ * @param {string} id - The ID of the event to fetch
+ * @returns {Promise<Object>} The event data
+ */
+export const getEventById = async (id) => {
+  try {
+    if (!id) {
+      throw new Error('Event ID is required');
+    }
+
+    const docRef = doc(db, 'events', id);
+    const docSnap = await getDoc(docRef);
+
+    if (!docSnap.exists()) {
+      return null;
+    }
+
+    return { id: docSnap.id, ...docSnap.data() };
+  } catch (error) {
+    console.error('Error getting event by ID:', error);
+    throw handleFirestoreError(error);
+  }
+};
+
+/**
+ * Get all events with pagination and filtering
+ * @param {Object} options - Options for pagination and filtering
+ * @param {number} [options.limit=10] - Number of events per page
+ * @param {string} [options.status] - Filter by status
+ * @param {string} [options.type] - Filter by event type
+ * @param {string} [options.orderBy='startDate'] - Field to order by
+ * @param {'asc'|'desc'} [options.orderDirection='desc'] - Sort direction
+ * @returns {Promise<{events: Array, lastVisible: any}>} Object containing events array and lastVisible document
+ */
+export const getAllEvents = async (options = {}) => {
+  try {
+    console.log('getAllEvents called with options:', options);
+    
+    // Create a simple query to get all events
+    const q = query(collection(db, 'events'));
+    console.log('Firestore query created');
+    
+    try {
+      const querySnapshot = await getDocs(q);
+      console.log('Query executed, snapshot size:', querySnapshot.size);
+      
+      if (querySnapshot.empty) {
+        console.log('No events found in the collection');
+        return { events: [] };
+      }
+      
+      const events = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        console.log('Document data:', { id: doc.id, ...data });
+        
+        // Convert Firestore timestamps to JavaScript Date objects
+        const event = { id: doc.id };
+        Object.entries(data).forEach(([key, value]) => {
+          event[key] = value?.toDate ? value.toDate() : value;
+        });
+        
+        events.push(event);
+      });
+      
+      console.log('Successfully processed', events.length, 'events');
+      return { events };
+      
+    } catch (error) {
+      console.error('Error in Firestore query:', error);
+      throw handleFirestoreError(error);
+    }
+  } catch (error) {
+    console.error('Error in getAllEvents:', error);
+    throw handleFirestoreError(error);
+  }
 };

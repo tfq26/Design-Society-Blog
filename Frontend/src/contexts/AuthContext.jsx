@@ -1,42 +1,138 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { 
-  getAuth, 
-  signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
   signOut, 
-  onAuthStateChanged, 
-  updateProfile as updateAuthProfile,
-  sendEmailVerification as sendEmailVerificationAuth,
+  onAuthStateChanged,
+  updateProfile,
   updateEmail,
   updatePassword,
   reauthenticateWithCredential,
-  EmailAuthProvider
+  EmailAuthProvider,
+  sendEmailVerification as sendEmailVerificationFirebase,
+  getAuth
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
-import { ref, deleteObject } from 'firebase/storage';
-import { auth, db, storage, uploadFile } from '../Api/api';
-
-export const AuthContext = createContext();
-
-export const useAuth = () => {
-  return useContext(AuthContext);
-};
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { auth, db, storage } from '../firebase';
+import { AuthContext } from './auth-context';
 
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const auth = getAuth();
+  const firebaseAuth = getAuth();
+
+  // Get user data from Firestore including role and admin status
+  const getUserData = useCallback(async (user) => {
+    if (!user) return null;
+    
+    try {
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        return { 
+          ...user,
+          ...userData,
+          role: userData.role || 'basic', // Default to 'basic' if no role is set
+          isAdmin: userData.role === 'admin' || userData.isAdmin === true
+        };
+      }
+      // If no user doc exists, create one with default role
+      await setDoc(doc(db, 'users', user.uid), {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName || user.email,
+        photoURL: user.photoURL || null,
+        emailVerified: user.emailVerified || false,
+        role: 'basic',
+        createdAt: serverTimestamp(),
+        lastLogin: serverTimestamp()
+      });
+      
+      return { 
+        ...user, 
+        role: 'basic',
+        isAdmin: false 
+      };
+    } catch (error) {
+      console.error('Error getting user data:', error);
+      // On error, assume basic user
+      return { 
+        ...user, 
+        role: 'basic',
+        isAdmin: false 
+      };
+    }
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
+      if (user) {
+        try {
+          const userWithData = await getUserData(user);
+          setCurrentUser({
+            ...userWithData,
+            uid: user.uid,
+            email: user.email,
+            emailVerified: user.emailVerified,
+            displayName: user.displayName || user.email,
+            photoURL: user.photoURL || null,
+            role: userWithData.role || 'basic',
+            isAdmin: userWithData.role === 'admin' || userWithData.isAdmin === true
+          });
+        } catch (error) {
+          console.error('Error fetching user data:', error);
+          setCurrentUser({
+            uid: user.uid,
+            email: user.email,
+            emailVerified: user.emailVerified,
+            displayName: user.displayName || user.email,
+            photoURL: user.photoURL || null,
+            role: 'basic',
+            isAdmin: false
+          });
+        }
+      } else {
+        setCurrentUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [firebaseAuth, getUserData]);
 
   // Send email verification
   const sendEmailVerification = async (user) => {
     try {
-      await sendEmailVerificationAuth(user);
+      await sendEmailVerificationFirebase(user);
       return { success: true };
     } catch (error) {
       console.error('Error sending verification email:', error);
       return { success: false, error: error.message };
     }
   };
+
+  // Upload file to storage
+  const uploadFile = async (file, path) => {
+    const storageRef = ref(storage, path);
+    await uploadBytes(storageRef, file);
+    return getDownloadURL(storageRef);
+  };
+
+  // Update auth profile
+  const updateAuthProfile = async (updates) => {
+    if (!currentUser) return { success: false, error: 'No user is signed in' };
+    
+    try {
+      await updateProfile(currentUser, updates);
+      setCurrentUser({ ...currentUser, ...updates });
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
 
   // Update user profile
   const updateUserProfile = async (updates) => {
@@ -162,24 +258,22 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Update user banner
-  const updateUserBanner = async (file) => {
-    try {
-      if (!currentUser) throw new Error('No user is signed in');
+  // Update user banner function is defined below
 
-      const path = `banners/${currentUser.uid}/${file.name}`;
-      const bannerURL = await uploadFile(file, path);
+  // Check if user has a specific role
+  const hasRole = (user, role) => {
+    if (!user) return false;
+    return user.role === role || user.isAdmin; // Admins have all roles
+  };
 
-      const userRef = doc(db, 'users', currentUser.uid);
-      await updateDoc(userRef, { bannerURL });
+  // Check if user is admin
+  const isUserAdmin = (user) => {
+    return hasRole(user, 'admin') || (user && user.isAdmin === true);
+  };
 
-      setCurrentUser(prevUser => ({ ...prevUser, bannerURL }));
-
-      return { success: true, bannerURL };
-    } catch (error) {
-      console.error('Error updating banner:', error);
-      return { success: false, error: error.message };
-    }
+  // Check if user is authorized (author or admin)
+  const isUserAuthorized = (user) => {
+    return hasRole(user, 'author') || isUserAdmin(user);
   };
 
   // Sign up with email and password
@@ -195,14 +289,22 @@ export const AuthProvider = ({ children }) => {
       // Send verification email
       await sendEmailVerification(userCredential.user);
       
-      // Create a user document in Firestore
+      // Create a user document in Firestore with default 'basic' role
       await setDoc(doc(db, 'users', userCredential.user.uid), {
         uid: userCredential.user.uid,
         email,
         displayName: username,
         emailVerified: false,
-        createdAt: new Date().toISOString(),
-        lastLogin: new Date().toISOString()
+        role: 'basic', // Default role
+        createdAt: serverTimestamp(),
+        lastLogin: serverTimestamp()
+      });
+
+      // Update local state
+      setCurrentUser({
+        ...userCredential.user,
+        role: 'basic',
+        emailVerified: false
       });
 
       return { 
@@ -231,77 +333,44 @@ export const AuthProvider = ({ children }) => {
   // Logout
   const logout = async () => {
     try {
-      await signOut(auth);
+      await signOut(firebaseAuth);
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
     }
   };
 
-  // Listen for auth state changes
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          // Get additional user data from Firestore
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          const userData = userDoc.data() || {};
-          
-          // Merge auth user data with Firestore data, ensuring auth data takes precedence for core fields
-          setCurrentUser({
-            ...userData, // Firestore data first
-            uid: user.uid, // Core auth data takes precedence
-            email: user.email,
-            emailVerified: user.emailVerified,
-            displayName: user.displayName,
-            photoURL: user.photoURL,
-          });
-        } catch (error) {
-          console.error('Error fetching user data:', error);
-          // Fallback to basic auth data if Firestore fails
-          setCurrentUser({
-            uid: user.uid,
-            email: user.email,
-            emailVerified: user.emailVerified,
-            displayName: user.displayName || user.email,
-            photoURL: user.photoURL || null
-          });
-        }
-      } else {
-        setCurrentUser(null);
-      }
-      setLoading(false);
-    });
+  // Update user banner
+  const updateUserBanner = async (file) => {
+    try {
+      if (!currentUser) throw new Error('No user is signed in');
 
-    return () => unsubscribe();
-  }, [auth]);
+      const path = `banners/${currentUser.uid}/${file.name}`;
+      const bannerURL = await uploadFile(file, path);
 
-  // Periodically check for email verification status
-  useEffect(() => {
-    let intervalId;
-    if (currentUser && !currentUser.emailVerified) {
-      intervalId = setInterval(async () => {
-        if (auth.currentUser) {
-          await auth.currentUser.reload();
-          // The onAuthStateChanged listener above will fire with the updated user, refreshing the state.
-        }
-      }, 5000); // Poll every 5 seconds
+      const userRef = doc(db, 'users', currentUser.uid);
+      await updateDoc(userRef, { bannerURL });
+
+      setCurrentUser(prevUser => ({ ...prevUser, bannerURL }));
+      return { success: true, bannerURL };
+    } catch (error) {
+      console.error('Error updating banner:', error);
+      return { success: false, error: error.message };
     }
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-    };
-  }, [currentUser, auth]);
+  };
 
   const value = {
     currentUser,
     signup,
     login,
     logout,
-    loading,
     updateUserProfile,
     updateUserBanner,
+    loading,
+    hasRole: (role) => hasRole(currentUser, role),
+    isAdmin: () => isUserAdmin(currentUser),
+    isAuthorized: () => isUserAuthorized(currentUser),
+    isVerified: () => currentUser?.emailVerified === true,
     sendEmailVerification: (user) => sendEmailVerification(user || currentUser)
   };
 

@@ -12,7 +12,7 @@ import {
   FiUsers,
   FiCheckCircle,
 } from "react-icons/fi";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import { addEvent, getEvents } from "../Api/events";
 import CreateEventForm from "../Components/Admin/CreateEventForm";
 import CreatePostForm from "../Components/Admin/CreatePostForm";
@@ -38,10 +38,12 @@ const AdminDashboard = () => {
     document.documentElement.classList.toggle("dark");
   };
 
-  // Redirect if not authenticated and fetch events
+  // Redirect if not authenticated or not an admin
   useEffect(() => {
     if (!currentUser) {
       navigate("/login");
+    } else if (!currentUser.isAdmin) {
+      navigate("/"); // Redirect to home if not admin
     } else {
       loadEvents();
     }

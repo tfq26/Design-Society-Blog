@@ -1,14 +1,35 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if user is authenticated
+    // Helper functions
     function isAuthenticated() {
       return request.auth != null;
     }
     
-    // Helper function to check if user is the author
+    function isEmailVerified() {
+      return isAuthenticated() && request.auth.token.email_verified == true;
+    }
+    
     function isAuthor() {
-      return request.auth.uid == resource.data.authorId;
+      return isAuthenticated() && request.auth.uid == resource.data.authorId;
+    }
+    
+    // Get user role from Firestore
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && getUserRole() == 'admin';
+    }
+    
+    function isAuthorizedUser() {
+      return isAuthenticated() && (getUserRole() in ['author', 'admin']);
+    }
+    
+    function isBasicUser() {
+      // Any authenticated user with a role is considered a basic user
+      return isAuthenticated() && getUserRole() in ['basic', 'author', 'admin'];
     }
 
     // Posts collection
@@ -16,22 +37,30 @@ service cloud.firestore {
       // Allow anyone to read posts
       allow read: if true;
       
-      // Allow authenticated users to create posts
-      allow create: if isAuthenticated() && 
+      // Allow authorized users to create posts
+      allow create: if isAuthorizedUser() && 
         request.resource.data.keys().hasAll(['title', 'content', 'authorId', 'authorName', 'createdAt']) &&
         request.auth.uid == request.resource.data.authorId;
       
-      // Allow updates to posts by the author or admin-like operations
+      // Allow updates to posts by the author or admin
       allow update: if isAuthenticated() && (
-        isAuthor() ||
-        // Allow updates to specific fields by any authenticated user (e.g., like counts)
-        (request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['likes', 'likesCount', 'updatedAt'])
+        isAuthor() || 
+        isAdmin() ||
+        // Allow updating comment count and updatedAt for any authenticated user
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount', 'updatedAt']))
+      ) && (
+        // If only updating commentCount and updatedAt, allow any value
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount', 'updatedAt'])) ||
+        // Otherwise, ensure the content is valid
+        (
+          request.resource.data.content is string &&
+          request.resource.data.content.size() > 0 &&
+          request.resource.data.content.size() < 100000
         )
       );
       
-      // Only allow the author to delete their own posts
-      allow delete: if isAuthenticated() && isAuthor();
+      // Allow deletion by author or admin
+      allow delete: if (isAuthor() || isAdmin());
     }
     
     // Comments subcollection
@@ -39,44 +68,92 @@ service cloud.firestore {
       // Allow anyone to read comments
       allow read: if true;
       
-      // Allow authenticated users to create comments
+      // Allow any authenticated user to create comments
       allow create: if isAuthenticated() &&
-        request.resource.data.keys().hasAll(['content', 'authorId', 'authorName', 'createdAt']) &&
-        request.auth.uid == request.resource.data.authorId;
+        request.resource.data.keys().hasAll(['content', 'authorId', 'authorName', 'createdAt', 'authorRole']) &&
+        request.auth.uid == request.resource.data.authorId &&
+        request.resource.data.content is string &&
+        request.resource.data.content.size() > 0 &&
+        request.resource.data.content.size() < 2000 &&
+        request.resource.data.authorRole in ['basic', 'author', 'admin'];
       
-      // Allow updates to comments by the author
+      // Allow updates to comments by the author or admin
       allow update: if isAuthenticated() && (
-        isAuthor() ||
-        // Allow updates to specific fields by any authenticated user (e.g., like counts)
+        // Allow full updates by the author
+        (isAuthor() && 
+         request.resource.data.content is string &&
+         request.resource.data.content.size() > 0 &&
+         request.resource.data.content.size() < 2000) ||
+        // Allow admin to update any comment
+        isAdmin() ||
+        // Allow like updates by any authenticated user
         (request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['likes', 'likesCount'])
-        )
+          .hasOnly(['likes', 'likesCount']))
       );
       
-      // Only allow the author to delete their own comments
-      allow delete: if isAuthenticated() && isAuthor();
+      // Allow comment deletion by the author or admin
+      allow delete: if (isAuthenticated() && (
+        resource.data.authorId == request.auth.uid || 
+        isAdmin()
+      ));
     }
     
     // User profiles
     match /users/{userId} {
-      // Allow anyone to read user profiles
+      // Allow anyone to read public user profiles
       allow read: if true;
       
-      // Users can only write to their own profile
+      // Users can create their own profile with minimal required fields
       allow create: if isAuthenticated() && 
         request.auth.uid == userId &&
-        request.resource.data.keys().hasAll(['displayName', 'email', 'photoURL']);
-        
-      allow update, delete: if isAuthenticated() && request.auth.uid == userId;
+        request.resource.data.uid == userId &&
+        request.resource.data.email is string &&
+        (request.resource.data.role == null || 
+         request.resource.data.role in ['basic', 'author', 'admin']);
+      
+      // Users can update their own profile, admins can update any profile
+      allow update: if (isAuthenticated() && 
+        request.auth.uid == userId &&
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt']) ||
+         (request.resource.data.role == resource.data.role))) ||
+        isAdmin();
+      
+      // Only admins can delete profiles
+      allow delete: if isAdmin();
+    }
+    
+    // Event registrations
+    match /eventRegistrations/{registrationId} {
+      // Allow users to see their own registrations, admins can see all
+      allow read: if isAuthenticated() && 
+        (request.auth.uid == resource.data.userId || isAdmin());
+      
+      // Allow verified users to register for events
+      allow create: if isAuthenticated() && 
+        isEmailVerified() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.keys().hasAll([
+          'eventId',
+          'userId',
+          'status',
+          'registeredAt'
+        ]);
+      
+      // Allow users to cancel their own registration, admins can update any
+      allow update: if (
+        (isAuthenticated() && request.auth.uid == resource.data.userId) ||
+        isAdmin()
+      ) && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'updatedAt']);
     }
     
     // Events collection
     match /events/{eventId} {
-      // Allow any authenticated user to read events
-      allow read: if isAuthenticated();
+      // Allow anyone to read events
+      allow read: if true;
       
-      // Allow authenticated users to create events
-      allow create: if isAuthenticated() && 
+      // Allow authorized users (authors/admins) to create events
+      allow create: if isAuthorizedUser() && 
         request.resource.data.keys().hasAll([
           'title',
           'description',

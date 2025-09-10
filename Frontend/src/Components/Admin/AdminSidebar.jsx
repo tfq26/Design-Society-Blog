@@ -8,7 +8,7 @@ import {
   FiLogOut,
   FiChevronRight
 } from 'react-icons/fi';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 
 const AdminSidebar = ({ activeTab, setActiveTab, onLogout, darkMode, toggleDarkMode }) => {
   const { currentUser } = useAuth();

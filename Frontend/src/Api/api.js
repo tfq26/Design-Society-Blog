@@ -3,6 +3,7 @@ import {
   getAuth, 
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  onAuthStateChanged,
   signOut,
   GoogleAuthProvider,
   signInWithPopup
@@ -10,18 +11,23 @@ import {
 import { 
   getFirestore, 
   collection, 
-  onSnapshot, 
-  addDoc, 
-  serverTimestamp, 
-  doc, 
+  doc,
   getDoc, 
-  query, 
-  orderBy,
-  increment,
-  runTransaction,
+  getDocs,
+  addDoc,
   setDoc,
   updateDoc,
-  where
+  deleteDoc,
+  query, 
+  where,
+  orderBy,
+  limit,
+  startAfter,
+  increment,
+  serverTimestamp,
+  runTransaction,
+  writeBatch,
+  onSnapshot
 } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
@@ -568,22 +574,83 @@ export const getComments = (postId, callback) => {
  */
 export const updateComment = async (postId, commentId, newContent) => {
   try {
+    console.group('updateComment - Debug Info');
+    
     if (!auth.currentUser) {
-      throw new ApiError('User not authenticated', 'auth/not-authenticated');
+      const error = new ApiError('User not authenticated', 'auth/not-authenticated');
+      console.error('Authentication error:', error);
+      throw error;
     }
+    
     if (!postId || !commentId || !newContent) {
-      throw new ApiError('Post ID, Comment ID, and new content are required', 'validation/missing-fields');
+      const error = new ApiError('Post ID, Comment ID, and content are required', 'validation/missing-fields');
+      console.error('Validation error:', error);
+      throw error;
     }
-
+    
+    // Get user role
+    const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+    const userRole = userDoc.data()?.role || 'no-role';
+    const isAdmin = userRole === 'admin';
+    
+    console.log('User info:', {
+      uid: auth.currentUser.uid,
+      role: userRole,
+      isAdmin,
+      action: 'updateComment'
+    });
+    
     const commentRef = doc(db, "posts", postId, "comments", commentId);
     
-    await updateDoc(commentRef, {
-      content: newContent.trim(),
-      updatedAt: serverTimestamp(),
+    const result = await runTransaction(db, async (transaction) => {
+      const commentDoc = await transaction.get(commentRef);
+      
+      if (!commentDoc.exists()) {
+        const error = new ApiError('Comment not found', 'firestore/not-found');
+        console.error('Comment not found:', { postId, commentId });
+        throw error;
+      }
+      
+      const commentData = commentDoc.data();
+      const isAuthor = commentData.authorId === auth.currentUser.uid;
+      
+      console.log('Comment info:', {
+        commentAuthorId: commentData.authorId,
+        currentUserId: auth.currentUser.uid,
+        isAuthor,
+        isAdmin,
+        currentRole: userRole
+      });
+      
+      // Check permissions
+      if (!isAuthor && !isAdmin) {
+        const error = new ApiError('You do not have permission to edit this comment', 'permission-denied');
+        console.error('Permission error:', error, { isAuthor, isAdmin });
+        throw error;
+      }
+      
+      transaction.update(commentRef, {
+        content: newContent.trim(),
+        updatedAt: serverTimestamp()
+      });
+      
+      return { success: true };
     });
-
+    
+    console.log('Comment updated successfully');
+    console.groupEnd();
+    return result;
   } catch (error) {
-    console.error("Error updating comment:", error);
+    console.error("Error updating comment:", {
+      error: error.message,
+      code: error.code,
+      stack: error.stack,
+      postId,
+      commentId,
+      userId: auth.currentUser?.uid,
+      timestamp: new Date().toISOString()
+    });
+    console.groupEnd();
     if (error instanceof ApiError) throw error;
     throw handleFirestoreError(error);
   }
@@ -598,25 +665,60 @@ export const updateComment = async (postId, commentId, newContent) => {
  */
 export const deleteComment = async (postId, commentId) => {
   try {
+    console.group('deleteComment - Debug Info');
+    
     if (!auth.currentUser) {
-      throw new ApiError('User not authenticated', 'auth/not-authenticated');
+      const error = new ApiError('User not authenticated', 'auth/not-authenticated');
+      console.error('Authentication error:', error);
+      throw error;
     }
+    
     if (!postId || !commentId) {
-      throw new ApiError('Post ID and Comment ID are required', 'validation/missing-ids');
+      const error = new ApiError('Post ID and Comment ID are required', 'validation/missing-ids');
+      console.error('Validation error:', error);
+      throw error;
     }
+
+    // Get user role
+    const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+    const userRole = userDoc.data()?.role || 'no-role';
+    const isAdmin = userRole === 'admin';
+    
+    console.log('User info:', {
+      uid: auth.currentUser.uid,
+      role: userRole,
+      isAdmin,
+      action: 'deleteComment'
+    });
 
     const commentRef = doc(db, "posts", postId, "comments", commentId);
     const postRef = doc(db, "posts", postId);
 
     await runTransaction(db, async (transaction) => {
       const commentDoc = await transaction.get(commentRef);
+      
       if (!commentDoc.exists()) {
-        throw new ApiError('Comment not found', 'firestore/not-found');
+        const error = new ApiError('Comment not found', 'firestore/not-found');
+        console.error('Comment not found:', { postId, commentId });
+        throw error;
       }
 
-      // Ensure the user is the author before deleting
-      if (commentDoc.data().authorId !== auth.currentUser.uid) {
-        throw new ApiError('You do not have permission to delete this comment', 'permission-denied');
+      const commentData = commentDoc.data();
+      const isAuthor = commentData.authorId === auth.currentUser.uid;
+      
+      console.log('Comment info:', {
+        commentAuthorId: commentData.authorId,
+        currentUserId: auth.currentUser.uid,
+        isAuthor,
+        isAdmin,
+        currentRole: userRole
+      });
+
+      // Check permissions
+      if (!isAuthor && !isAdmin) {
+        const error = new ApiError('You do not have permission to delete this comment', 'permission-denied');
+        console.error('Permission error:', error, { isAuthor, isAdmin });
+        throw error;
       }
 
       transaction.delete(commentRef);
@@ -624,24 +726,133 @@ export const deleteComment = async (postId, commentId) => {
         commentCount: increment(-1),
         updatedAt: serverTimestamp()
       });
+      
+      console.log('Comment deleted successfully');
     });
-
+    
+    console.groupEnd();
+    return { success: true };
   } catch (error) {
-    console.error("Error deleting comment:", error);
+    console.error("Error deleting comment:", {
+      error: error.message,
+      code: error.code,
+      stack: error.stack,
+      postId,
+      commentId,
+      userId: auth.currentUser?.uid,
+      timestamp: new Date().toISOString()
+    });
+    console.groupEnd();
     if (error instanceof ApiError) throw error;
     throw handleFirestoreError(error);
   }
 };
 
+/**
+ * Creates or updates a user document in Firestore
+ * @param {Object} user - The Firebase user object
+ * @param {Object} [additionalData={}] - Additional user data to store
+ * @returns {Promise<void>}
+ */
+export const createOrUpdateUserDocument = async (user, additionalData = {}) => {
+  if (!user) return;
+
+  const userRef = doc(db, 'users', user.uid);
+  const userDoc = await getDoc(userRef);
+  
+  // If user document doesn't exist, create it
+  if (!userDoc.exists()) {
+    const { email, displayName, photoURL } = user;
+    const createdAt = new Date();
+    
+    try {
+      await setDoc(userRef, {
+        displayName: displayName || 'Anonymous',
+        email: email || '',
+        photoURL: photoURL || null,
+        role: 'basic', // Default role
+        createdAt,
+        updatedAt: createdAt,
+        ...additionalData
+      });
+    } catch (error) {
+      console.error('Error creating user document:', error);
+      throw new ApiError('Failed to create user profile', 'firestore/create-user-failed');
+    }
+  } else {
+    // Update existing user document
+    try {
+      await updateDoc(userRef, {
+        updatedAt: new Date(),
+        ...(user.displayName && { displayName: user.displayName }),
+        ...(user.photoURL && { photoURL: user.photoURL }),
+        ...additionalData
+      });
+    } catch (error) {
+      console.error('Error updating user document:', error);
+      throw new ApiError('Failed to update user profile', 'firestore/update-user-failed');
+    }
+  }
+};
+
+// Listen for auth state changes to create/update user documents
+if (typeof window !== 'undefined') {
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      try {
+        await createOrUpdateUserDocument(user);
+      } catch (error) {
+        console.error('Error in auth state change handler:', error);
+      }
+    }
+  });
+}
+
 export const addComment = async (postId, content, parentId = null) => {
   try {
+    console.group('addComment - Debug Info');
+    
     if (!auth.currentUser) {
-      throw new ApiError('User not authenticated', 'auth/not-authenticated');
+      const error = new ApiError('User not authenticated', 'auth/not-authenticated');
+      console.error('Authentication error:', error);
+      throw error;
     }
     
     if (!postId || !content) {
-      throw new ApiError('Post ID and content are required', 'validation/missing-fields');
+      const error = new ApiError('Post ID and content are required', 'validation/missing-fields');
+      console.error('Validation error:', error);
+      throw error;
     }
+    
+    console.log('User info:', {
+      uid: auth.currentUser.uid,
+      email: auth.currentUser.email,
+      displayName: auth.currentUser.displayName
+    });
+    
+    // Ensure user document exists and get user role
+    await createOrUpdateUserDocument(auth.currentUser);
+    const userDocRef = doc(db, 'users', auth.currentUser.uid);
+    const userDoc = await getDoc(userDocRef);
+    
+    // If user document doesn't exist or doesn't have a role, create/update it
+    if (!userDoc.exists() || !userDoc.data()?.role) {
+      console.log('User document missing role, updating...');
+      await setDoc(userDocRef, {
+        uid: auth.currentUser.uid,
+        email: auth.currentUser.email,
+        displayName: auth.currentUser.displayName || '',
+        photoURL: auth.currentUser.photoURL || '',
+        role: 'basic',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      console.log('User document updated with basic role');
+    }
+    
+    const userRole = userDoc.data()?.role || 'basic';
+    
+    console.log('User role:', userRole);
     
     const commentsRef = collection(db, "posts", postId, "comments");
     const commentData = {
@@ -649,11 +860,20 @@ export const addComment = async (postId, content, parentId = null) => {
       userId: auth.currentUser.uid,
       authorId: auth.currentUser.uid,
       authorName: auth.currentUser.displayName || 'Anonymous',
+      authorPhotoURL: auth.currentUser.photoURL || null,
+      authorRole: userRole, // Add role to comment data
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       votes: 0,
       parentId: parentId,
     };
+    
+    console.log('Creating comment with data:', {
+      postId,
+      content: content.trim().substring(0, 50) + '...', // Log first 50 chars
+      parentId,
+      userRole
+    });
     
     // Start a transaction to update both the comment and the post's comment count
     await runTransaction(db, async (transaction) => {
@@ -672,7 +892,15 @@ export const addComment = async (postId, content, parentId = null) => {
     
     return { ...commentData };
   } catch (error) {
-    console.error("Error adding comment:", error);
+    console.error("Error adding comment:", {
+      error: error.message,
+      code: error.code,
+      stack: error.stack,
+      postId,
+      userId: auth.currentUser?.uid,
+      timestamp: new Date().toISOString()
+    });
+    console.groupEnd();
     if (error instanceof ApiError) throw error;
     throw handleFirestoreError(error);
   }
@@ -793,6 +1021,8 @@ export const voteOnPost = async (postId, direction) => {
       result.newVoteCount = newVoteCount;
     });
     
+    console.log('Comment created successfully');
+    console.groupEnd();
     return result;
   } catch (error) {
     console.error("Error voting on post:", error);

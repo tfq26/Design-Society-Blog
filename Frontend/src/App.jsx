@@ -8,22 +8,25 @@ import Profile from './Pages/Profile';
 import Login from './Components/auth/Login';
 import Signup from './Components/auth/Signup';
 import { initFirebase } from './Api/api';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider } from './contexts/AuthProvider';
 import { useAuth } from './hooks/useAuth';
-import useTheme from './hooks/useTheme';
 import PrivateRoute from './Components/auth/PrivateRoute';
 import AdminRoute from './Components/auth/AdminRoute';
 import ProtectedRoute from './Components/ProtectedRoute';
 import { ErrorBoundary, ErrorPage } from './Components/ErrorBoundary';
 import Home from './Pages/Home';
+import About from './Pages/About';
 import Events from './Pages/Events';
-import EventDetails from './Pages/EventDetails';
+import EventDetail from './Pages/EventDetail';
 import AdminDashboard from './Pages/AdminDashboard';
+import UserProfile from './Pages/UserProfile';
 
 function App() {
   const [isFirebaseReady, setFirebaseReady] = useState(false);
   const [initializationError, setInitializationError] = useState(null);
   const { currentUser } = useAuth();
+  
+  // Call the useTheme hook to enable lig
 
   useEffect(() => {
     const initialize = async () => {
@@ -38,11 +41,10 @@ function App() {
     initialize();
   }, []);
 
-  useTheme();
 
   if (initializationError) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-red-50 dark:bg-eerie-black">
         <ErrorPage 
           error={initializationError} 
           resetError={() => window.location.reload()}
@@ -53,7 +55,7 @@ function App() {
 
   if (!isFirebaseReady) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen dark:bg-eerie-black">
         <div className="text-center p-8" style={{ color: 'var(--eerie-black)' }}>
           Initializing application...
         </div>
@@ -63,7 +65,8 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <div>
+      {/* Centralized background styling to a top-level div for consistency */}
+      <div className="bg-red-50 dark:bg-eerie-black">
         <NavBar />
         <main className="container mx-auto px-4 py-8">
           <Routes>
@@ -84,7 +87,7 @@ function App() {
               } 
             />
             <Route 
-              path="/Events" 
+              path="/events" 
               element={
                 <ErrorBoundary>
                   <Events />
@@ -92,10 +95,26 @@ function App() {
               } 
             />
             <Route 
-              path="/event/:eventId" 
+              path="/events/:id" 
               element={
                 <ErrorBoundary>
-                  <EventDetails />
+                  <EventDetail />
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/user/:userId" 
+              element={
+                <ErrorBoundary>
+                  <UserProfile />
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/about" 
+              element={
+                <ErrorBoundary>
+                  <About />
                 </ErrorBoundary>
               } 
             />
